@@ -1,7 +1,7 @@
 <template>
   <div class="chat-container">
     <header class="chat-header">
-      <h1>🤖 AI 助手</h1>
+      <h1>🤖 AI 助手（流式版）</h1>
     </header>
 
     <main class="chat-messages" ref="messagesContainer">
@@ -15,7 +15,7 @@
       </div>
       <div v-if="isLoading" class="message assistant">
         <div class="message-role">AI</div>
-        <div class="message-content loading">思考中...</div>
+        <div class="message-content loading">{{ loadingText }}</div>
       </div>
     </main>
 
@@ -26,7 +26,9 @@
         @keyup.enter="sendMessage"
         :disabled="isLoading"
       />
-      <button @click="sendMessage" :disabled="isLoading">发送</button>
+      <button @click="sendMessage" :disabled="isLoading">
+        {{ isLoading ? '思考中...' : '发送' }}
+      </button>
     </footer>
   </div>
 </template>
@@ -34,7 +36,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
 
-// 消息类型定义
+// 消息类型
 interface Message {
   role: 'user' | 'assistant'
   content: string
@@ -44,50 +46,98 @@ interface Message {
 const messages = ref<Message[]>([])
 const userInput = ref('')
 const isLoading = ref(false)
+const loadingText = ref('思考中...')
 const messagesContainer = ref<HTMLElement>()
 
-// 发送消息
-async function sendMessage() {
-  const text = userInput.value.trim()
-  if (!text || isLoading.value) return
-
-  // 添加用户消息到列表
-  messages.value.push({ role: 'user', content: text })
-  userInput.value = ''
-  isLoading.value = true
-
-  // 滚动到底部
-  await nextTick()
-  scrollToBottom()
-
-  try {
-    // 调用后端 API
-    const response = await fetch('http://localhost:8000/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
-    })
-
-    const data = await response.json()
-    
-    // 添加 AI 回复到列表
-    messages.value.push({ role: 'assistant', content: data.reply })
-  } catch (error) {
-    messages.value.push({
-      role: 'assistant',
-      content: `❌ 出错了: ${error instanceof Error ? error.message : '未知错误'}`
-    })
-  } finally {
-    isLoading.value = false
-    await nextTick()
-    scrollToBottom()
-  }
-}
+// 历史记录（发给后端）
+let chatHistory: Array<{ role: string; content: string }> = []
 
 // 滚动到底部
 function scrollToBottom() {
   if (messagesContainer.value) {
     messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// 发送消息（核心：流式输出）
+async function sendMessage() {
+  const text = userInput.value.trim()
+  if (!text || isLoading.value) return
+
+  // 添加用户消息
+  messages.value.push({ role: 'user', content: text })
+  userInput.value = ''
+  isLoading.value = true
+  loadingText.value = '思考中...'
+
+  // 创建一个空的 AI 消息，后续逐步填充
+  const aiMsgIndex = messages.value.length
+  messages.value.push({ role: 'assistant', content: '' })
+
+  await nextTick()
+  scrollToBottom()
+
+  try {
+    const response = await fetch('/api/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        history: chatHistory
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
+    }
+
+    // 逐块读取流式响应
+    const reader = response.body!.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullReply = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+
+      // 按行分割 SSE 数据
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6)
+          if (dataStr === '[DONE]') break
+
+          try {
+            const parsed = JSON.parse(dataStr)
+            if (parsed.content) {
+              fullReply += parsed.content
+              // 实时更新消息内容 → 打字机效果
+              messages.value[aiMsgIndex].content = fullReply
+              scrollToBottom()
+            }
+          } catch (e) {
+            console.warn('Parse error:', e)
+          }
+        }
+      }
+    }
+
+    // 更新历史记录
+    chatHistory.push({ role: 'user', content: text })
+    chatHistory.push({ role: 'assistant', content: fullReply })
+
+  } catch (error) {
+    messages.value[aiMsgIndex].content =
+      '❌ 请求失败: ' + (error instanceof Error ? error.message : '未知错误')
+  } finally {
+    isLoading.value = false
+    await nextTick()
+    scrollToBottom()
   }
 }
 </script>
@@ -162,7 +212,7 @@ body {
 
 .message-content {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
   white-space: pre-wrap;
 }
 
