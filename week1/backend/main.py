@@ -88,7 +88,6 @@ async def chat_stream(request: ChatRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/")
 async def root():
     return {"message": "Backend is running!"}
