@@ -37,7 +37,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watchEffect, watch } from 'vue'
+import { ref, nextTick, watchEffect, watch, onMounted } from 'vue'
 import { marked } from 'marked'
 // 消息类型
 interface Message {
@@ -53,22 +53,34 @@ const isLoading = ref(false)
 const controller = ref<AbortController | null>(null)  // 添加这行
 const loadingText = ref('思考中...')
 const messagesContainer = ref<HTMLElement>()
+onMounted(async () => {
+  // 页面加载时读取
+// const saved = localStorage.getItem('chat')
+// if (saved) {
+//   messages.value = JSON.parse(saved)
+// }
 
+  try {
+    const res = await fetch('/api/history')
+    const data = await res.json()
+    messages.value = data.map((m: any) => ({
+      role: m.role,
+      content: m.content,
+      time: m.time
+    }))
+  } catch (e) {
+    console.warn('加载历史记录失败:', e)
+  }
+})
 
 // 每次消息更新后保存
-function saveChat() {
-  localStorage.setItem('chat', JSON.stringify(messages.value))
-}
+// function saveChat() {
+//   localStorage.setItem('chat', JSON.stringify(messages.value))
+// }
 
-watch(messages, () => {
-  saveChat()
-}, { deep: true })
-
-// 页面加载时读取
-const saved = localStorage.getItem('chat')
-if (saved) {
-  messages.value = JSON.parse(saved)
-}
+// watch(messages, () => {
+//   saveChat()
+// }, { deep: true })
 
 // 历史记录（发给后端）
 let chatHistory: Array<{ role: string; content: string }> = []

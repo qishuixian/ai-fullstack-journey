@@ -7,10 +7,16 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
+from database import async_session, ChatMessage, init_db
+from uuid import uuid4
 
 load_dotenv()
 
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup():
+    await init_db()
 
 # 允许跨域
 app.add_middleware(
@@ -68,11 +74,29 @@ async def chat_stream(request: ChatRequest):
 
         # 定义一个生成器，逐块产生 SSE 格式的数据
         async def generate():
+            full_reply = ""  # 用于累积完整回复
             for chunk in stream:
                 if chunk.choices[0].delta.content is not None:
                     content = chunk.choices[0].delta.content
+                    full_reply += content
                     # SSE 格式：data: <json>\n\n
                     yield f"data: {json.dumps({'content': content})}\n\n"
+            # ---------- 流结束后，保存到数据库 ----------
+            async with async_session() as session:
+                user_msg = ChatMessage(
+                    role="user",
+                    content=request.message,   # 用户消息内容
+                    session_id="default"       # 先固定会话ID
+                )
+                session.add(user_msg)
+                ai_msg = ChatMessage(
+                    role="assistant",
+                    content=full_reply,        # AI完整回复
+                    session_id="default"
+                )
+                session.add(ai_msg)
+                await session.commit()
+            # ------------------------------------------
             # 发送结束标志
             yield "data: [DONE]\n\n"
 
@@ -87,6 +111,21 @@ async def chat_stream(request: ChatRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+@app.get("/history")
+async def get_history(session_id: str = "default"):
+    async with async_session() as session:
+        from sqlalchemy import select
+        stmt = select(ChatMessage).where(
+            ChatMessage.session_id == session_id
+        ).order_by(ChatMessage.created_at)
+        result = await session.execute(stmt)
+        messages = result.scalars().all()
+        return [
+            {"role": m.role, "content": m.content, "time": m.created_at.isoformat()}
+            for m in messages
+        ]
+
+
 
 @app.get("/")
 async def root():
