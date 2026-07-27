@@ -1,52 +1,68 @@
-# AI Fullstack Journey 🚀
+# AI Fullstack Journey
 
 从 10 年前端转型 AI 全栈工程师的学习记录。
 
-## 📅 学习日志
+## 学习日志
 
-- [x] **Week 1 · Day 1**: Python 环境搭建 & DeepSeek API 非流式调用
-- [x] **Week 1 · Day 2**: 流式输出（Streaming / SSE）
-- [x] **Week 1 · Day 3**: 多轮对话上下文管理
-- [ ] **Week 2**: FastAPI 后端搭建（`/chat` + `/chat/stream`）
-- [ ] **Week 3**: Vue3 前端对接（流式渲染 + Markdown）
-- [ ] **Week 4**: Docker 打包 & 云服务器部署
-- [ ] **Month 2**: RAG 知识库（LangChain + ChromaDB）
-- [ ] **Month 3**: Agent 智能体（LangGraph + Function Calling）
-- [ ] **Month 4**: 工程化（vLLM / MCP）+ 求职准备
+### Month 1 · AI 聊天全栈应用
 
-## 🗂️ 项目结构
+| Day | 主题 | 状态 |
+|-----|------|------|
+| Day 1 | Python 环境搭建 & DeepSeek API 非流式调用 | ✅ |
+| Day 2 | 流式输出（Streaming / SSE） | ✅ |
+| Day 3 | 多轮对话上下文管理 | ✅ |
+| Day 4 | FastAPI 后端搭建（`/chat` + `/chat/stream`） | ✅ |
+| Day 5 | Vue3 前端对接 & 流式渲染（打字机效果） | ✅ |
+| Day 6 | 时间显示、本地持久化、Markdown 渲染 | ✅ |
+| Day 7 | SQLite 数据库持久化（SQLAlchemy async） | ✅ |
+| Week 2+ | Docker 打包 & 云服务器部署 | 🔜 |
+
+### Month 2 · RAG 知识库
+
+- [ ] LangChain + ChromaDB 向量检索
+- [ ] 文档解析与嵌入
+
+### Month 3 · Agent 智能体
+
+- [ ] LangGraph + Function Calling
+- [ ] 多工具调用
+
+### Month 4 · 工程化 + 求职
+
+- [ ] vLLM 推理服务 / MCP 协议
+- [ ] 简历与项目打包
+
+## 项目结构
 
 ```text
-E:\my\ai-fullstack-journey\
-├── .env                    ← 填入你的 DeepSeek Key
-├── .env.example            ← Key 模板（参考用）
-├── .gitignore              ← 保护 .env 不被提交
-├── README.md               ← 项目说明（后续填博客链接）
-├── week1\                  ← 第 1 周：CLI 聊天工具
-│   ├── chat.py             ← Day 1: 非流式调用
-│   ├── chat_stream.py      ← Day 2: 流式输出
-│   └── chat_managed.py     ← Day 3: 对话管理
-├── backend\                ← 第 2 周：FastAPI 后端
-│   ├── main.py             ← FastAPI 入口
-│   └── requirements.txt    ← Python 依赖清单
-└── frontend\               ← 第 3 周：Vue3 前端
-    ├── index.html
-    ├── vite.config.ts
-    └── src\
-        ├── main.ts
-        └── App.vue         ← 聊天界面
+ai-fullstack-journey/
+├── week1/
+│   ├── backend/
+│   │   ├── chat.py             ← Day 1: 非流式 CLI
+│   │   ├── chat_stream.py      ← Day 2: 流式 CLI
+│   │   ├── chat_managed.py     ← Day 3: 多轮对话 CLI
+│   │   ├── database.py         ← Day 7: SQLAlchemy 异步模型
+│   │   ├── main.py             ← Day 4-7: FastAPI（/chat /chat/stream /history）
+│   │   └── requirements.txt
+│   └── frontend/
+│       └── src/
+│           └── App.vue         ← Day 5-6: Vue3 聊天界面
+├── week2/
+│   └── backend/                ← Week 2 练习代码
+├── .gitignore
+└── README.md
 ```
 
-> 📌 当前状态：`week1/` 已完成 Day 1–3；`backend/`、`frontend/` 待创建。
+## 技术栈
 
-## 🛠️ 技术栈
+| 层 | 技术 |
+|----|------|
+| 前端 | Vue 3, TypeScript, Vite, marked.js |
+| 后端 | Python, FastAPI, Pydantic, SSE |
+| AI 模型 | DeepSeek API（openai 兼容格式） |
+| 数据库 | SQLite + SQLAlchemy（async） |
+| 规划中 | LangChain, LangGraph, ChromaDB, Docker, vLLM |
 
-- **前端**: Vue 3, TypeScript, Pinia, Vite
-- **后端**: Python, FastAPI, Pydantic
-- **AI / 模型**: LangChain, LangGraph, RAG, Agent, DeepSeek
-- **数据库**: ChromaDB, SQLite
-- **工程化**: Docker, docker-compose, vLLM, MCP
+## 相关链接
 
-## 🔗 相关链接
-
-- [我的掘金博客](https://juejin.cn/user/xxx) <!-- 把你博客地址贴这里 -->
+- [我的掘金博客](https://juejin.cn/column/7666799391334973474)
