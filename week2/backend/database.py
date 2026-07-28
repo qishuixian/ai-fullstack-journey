@@ -34,6 +34,7 @@ class Session(Base):
     id = Column(String(36), primary_key=True)
     name = Column(String(100),default="新对话")
     user_id = Column(Integer, ForeignKey("users.id"))
+    pinned = Column(Integer, default=0)  # 0=未置顶，1=已置顶
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)
 

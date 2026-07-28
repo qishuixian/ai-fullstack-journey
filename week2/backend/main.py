@@ -15,7 +15,9 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db
 from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+import json
+from io import BytesIO
 from auth import (
     SECRET_KEY, ALGORITHM, register_user, authenticate_user, create_access_token, get_current_user
 )
@@ -239,11 +241,16 @@ async def get_sessions(
 ):
     stmt = select(Session).where(
         Session.user_id == current_user.id
-    ).order_by(Session.updated_at.desc())
+    ).order_by(Session.pinned.desc(), Session.updated_at.desc())
     result = await db.execute(stmt)
     sessions = result.scalars().all()
     return [
-        {"id": s.id, "name": s.name, "created_at": s.created_at.isoformat() if s.created_at else None}
+        {
+            "id": s.id,
+            "name": s.name,
+            "pinned": s.pinned,
+            "created_at": s.created_at.isoformat() if s.created_at else None
+        }
         for s in sessions
     ]
 
@@ -285,6 +292,26 @@ async def update_session(
     session.name = request.name
     await db.commit()
     return {"message": "更新成功"}
+
+@app.patch("/sessions/{session_id}/pin")
+async def toggle_pin_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    stmt = select(Session).where(
+        Session.id == session_id,
+        Session.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 切换置顶状态
+    session.pinned = 1 if session.pinned == 0 else 0
+    await db.commit()
+    return {"message": "置顶状态已更新", "pinned": session.pinned}
 
 @app.delete("/sessions/{session_id}")
 async def delete_session(
@@ -330,5 +357,4 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/")
-async def root():
-    return {"message": "Backend is running!"}
+async def roo

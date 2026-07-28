@@ -55,12 +55,17 @@
           v-else
           class="session-name"
         >
+          <span v-if="session.pinned" class="pin-icon">📌</span>
           {{ session.name }}
         </span>
         <button class="menu-btn" @click.stop="toggleMenu(session.id)">⋮</button>
 
         <!-- 下拉菜单 -->
         <div v-if="activeMenuId === session.id" class="context-menu" @click.stop>
+          <div class="menu-item" @click="togglePin(session.id, session.pinned)">
+            <span class="menu-icon">📌</span>
+            <span>{{ session.pinned ? '取消置顶' : '置顶' }}</span>
+          </div>
           <div class="menu-item" @click="startEdit(session.id, session.name)">
             <span class="menu-icon">✏️</span>
             <span>编辑名称</span>
@@ -170,6 +175,21 @@ function cancelEdit() {
 function handleDelete(sessionId) {
   closeMenu()
   emit('delete-session', sessionId)
+}
+
+async function togglePin(sessionId, currentPinned) {
+  closeMenu()
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/pin`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${props.token}` }
+    })
+    if (res.ok) {
+      emit('session-updated')
+    }
+  } catch (e) {
+    console.error('切换置顶状态失败:', e)
+  }
 }
 
 // 点击外部关闭菜单
@@ -348,6 +368,14 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pin-icon {
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .session-name-input {
