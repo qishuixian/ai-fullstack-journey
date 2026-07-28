@@ -7,6 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from database import async_session, User
 from dependencies import get_db
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY", "fallback-dev-key")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+
 
 SECRET_KEY = "your-secret-key-change-in-production"  # 生产环境请使用环境变量
 ALGORITHM = "HS256"

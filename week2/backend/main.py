@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import time
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -46,8 +47,7 @@ client = OpenAI(
 class ChatRequest(BaseModel):
     message: str
     history: list = []  # 历史记录，可选
-
-import time
+    session_id: str = "default"  # 会话ID
 # 中间件所有HTTP请求都要经过
 @app.middleware("http")
 async def log_request_time(request: Request, call_next):
@@ -145,8 +145,8 @@ async def chat_stream(
             #     session.add(ai_msg)
             #     await session.commit()
             # 使用注入的 db 会话
-            db.add(ChatMessage(role="user", content=request.message,session_id="default"))
-            db.add(ChatMessage(role="assistant", content=full_reply,session_id="default"))
+            db.add(ChatMessage(role="user", content=request.message, session_id=request.session_id))
+            db.add(ChatMessage(role="assistant", content=full_reply, session_id=request.session_id))
             await db.commit()
             # -
             # 发送结束标志
@@ -262,6 +262,29 @@ async def create_session(
     db.add(new_session)
     await db.commit()
     return {"id": session_id, "name": "新对话"}
+
+class UpdateSessionRequest(BaseModel):
+    name: str
+
+@app.patch("/sessions/{session_id}")
+async def update_session(
+    session_id: str,
+    request: UpdateSessionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    stmt = select(Session).where(
+        Session.id == session_id,
+        Session.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    session.name = request.name
+    await db.commit()
+    return {"message": "更新成功"}
 
 @app.delete("/sessions/{session_id}")
 async def delete_session(

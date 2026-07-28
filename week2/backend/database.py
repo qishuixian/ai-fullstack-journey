@@ -1,10 +1,11 @@
+import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from datetime import datetime
 
 # 数据库文件路径（会在 backend 目录下生成 chat.db）
-DATABASE_URL = "sqlite+aiosqlite:///./chat.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./chat.db")
 
 # 创建异步引擎  echo=True 会打印所有 SQL 语句，便于调试
 engine = create_async_engine(DATABASE_URL, echo=True)
