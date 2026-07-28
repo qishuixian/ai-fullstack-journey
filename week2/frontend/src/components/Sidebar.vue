@@ -1,10 +1,40 @@
 <template>
   <aside class="sidebar">
     <div class="sidebar-header">
-      <h3>💬 对话</h3>
-      <button class="new-chat-btn" @click="$emit('create-session')">＋ 新对话</button>
+      <!-- 顶部操作栏 -->
+      <div class="header-actions">
+        <button class="icon-btn" title="新建对话" @click="$emit('create-session')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+        </button>
+        <!-- <button class="icon-btn" title="刷新" @click="$emit('session-updated')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+        </button> -->
+      </div>
+
+      <!-- 搜索框 -->
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="搜索会话..."
+          class="search-input"
+        />
+        <span v-if="searchQuery" class="clear-search" @click="searchQuery = ''">×</span>
+      </div>
+
+      <div class="header-divider"></div>
     </div>
     <div class="session-list">
+      <!-- 无搜索结果提示 -->
+      <div v-if="filteredSessions.length === 0" class="no-results">
+        <p>😕 未找到匹配的会话</p>
+      </div>
+
       <div
         v-for="session in filteredSessions"
         :key="session.id"
@@ -168,8 +198,39 @@ onUnmounted(() => {
 }
 
 .sidebar-header {
-  padding: 16px;
+  padding: 12px;
   border-bottom: 1px solid #333;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  background: #343541;
+  border-color: #666;
+}
+
+.header-divider {
+  height: 1px;
+  background: #333;
+  margin: 12px 0 8px 0;
 }
 
 .sidebar-header h3 {
@@ -194,10 +255,71 @@ onUnmounted(() => {
   background: #40414f;
 }
 
+.search-box {
+  position: relative;
+  margin-top: 12px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: #888;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 30px 8px 32px;
+  background: #40414f;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.search-input::placeholder {
+  color: #888;
+}
+
+.search-input:focus {
+  border-color: #1a73e8;
+}
+
+.clear-search {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #888;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.clear-search:hover {
+  color: #ccc;
+}
+
 .session-list {
   flex: 1;
   overflow-y: auto;
   padding: 8px;
+}
+
+.no-results {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
 }
 
 .session-item {
