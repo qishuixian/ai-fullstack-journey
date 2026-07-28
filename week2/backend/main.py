@@ -7,13 +7,19 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from openai import OpenAI
 from dotenv import load_dotenv
-from database import async_session, ChatMessage, init_db
+from sqlalchemy import delete, select
+from database import User, async_session, ChatMessage, init_db, Session
 from uuid import uuid4
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db
 from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
+from auth import (
+    SECRET_KEY, ALGORITHM, register_user, authenticate_user, create_access_token, get_current_user
+)
+from fastapi.security import OAuth2PasswordRequestForm
+
 
 load_dotenv()
 
@@ -73,8 +79,10 @@ async def log_request_time(request: Request, call_next):
 #     return response
 # ---- 原有的非流式接口（保留用于对比） ----
 @app.post("/chat")
-
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    current_user: User = Depends(get_current_user)
+):
     try:
         messages = [{"role": "system", "content": "你是一个友善的AI助手。"}]
         for msg in request.history:
@@ -94,8 +102,11 @@ async def chat(request: ChatRequest):
 
 # ---- 新增的流式接口 ----
 @app.post("/chat/stream")
-# db: # 注入数据库会话
-async def chat_stream(request: ChatRequest,db: AsyncSession = Depends(get_db)):
+async def chat_stream(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     try:
         messages = [{"role": "system", "content": "你是一个友善的AI助手。"}]
         for msg in request.history:
@@ -157,7 +168,10 @@ async def chat_stream(request: ChatRequest,db: AsyncSession = Depends(get_db)):
     
 
 @app.get("/history")
-async def get_history(session_id: str = "default"):
+async def get_history(
+    session_id: str = "default",
+    current_user: User = Depends(get_current_user)
+):
     async with async_session() as session:
         from sqlalchemy import select
         stmt = select(ChatMessage).where(
@@ -190,15 +204,107 @@ manager = ConnectionManager()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)  # 接受连接
+    # 从 query 参数中获取 token
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008)  # Policy Violation
+        return
+    
+    # 验证 token
+    try:
+        from jose import jwt
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username = payload.get("sub")
+        if not username:
+            await websocket.close(code=1008)
+            return
+    except:
+        await websocket.close(code=1008)
+        return
+    
+    await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_text()  # 等待客户端发消息
-            # 收到消息后广播给所有人
-            await manager.broadcast(f"用户说: {data}")
+            data = await websocket.receive_text()
+            await manager.broadcast(f"[{username}] 说: {data}")
     except WebSocketDisconnect:
-        manager.disconnect(websocket)  # 断开连接
-        await manager.broadcast("有人离开了聊天室")
+        manager.disconnect(websocket)
+        await manager.broadcast(f"[{username}] 离开了")
+
+
+@app.get("/sessions")
+async def get_sessions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    stmt = select(Session).where(
+        Session.user_id == current_user.id
+    ).order_by(Session.updated_at.desc())
+    result = await db.execute(stmt)
+    sessions = result.scalars().all()
+    return [
+        {"id": s.id, "name": s.name, "created_at": s.created_at.isoformat() if s.created_at else None}
+        for s in sessions
+    ]
+
+
+@app.post("/sessions")
+async def create_session(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    session_id = str(uuid4())
+    new_session = Session(
+        id=session_id,
+        name="新对话",
+        user_id=current_user.id
+    )
+    db.add(new_session)
+    await db.commit()
+    return {"id": session_id, "name": "新对话"}
+
+@app.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 先检查会话是否存在且属于当前用户
+    stmt = select(Session).where(
+        Session.id == session_id,
+        Session.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在或无权限删除")
+    
+    # 删除会话下的所有消息
+    await db.execute(delete(ChatMessage).where(ChatMessage.session_id == session_id))
+    # 删除会话
+    await db.execute(delete(Session).where(Session.id == session_id))
+    await db.commit()
+    return {"message": "会话已删除"}
+
+# 注册
+@app.post("/register")
+async def register(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+    user = await register_user(form_data.username, form_data.password, db)
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# 登录（获取Token）
+@app.post("/token")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+    user = await authenticate_user(form_data.username, form_data.password, db)
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/")
 async def root():
