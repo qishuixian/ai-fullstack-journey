@@ -70,6 +70,14 @@
             <span class="menu-icon">✏️</span>
             <span>编辑名称</span>
           </div>
+          <div class="menu-item" @click="exportSession(session.id, session.name, 'json')">
+            <span class="menu-icon">📥</span>
+            <span>导出为 JSON</span>
+          </div>
+          <div class="menu-item" @click="exportSession(session.id, session.name, 'markdown')">
+            <span class="menu-icon">📝</span>
+            <span>导出为 Markdown</span>
+          </div>
           <div class="menu-item delete" @click="handleDelete(session.id)">
             <span class="menu-icon">🗑️</span>
             <span>删除</span>
@@ -189,6 +197,29 @@ async function togglePin(sessionId, currentPinned) {
     }
   } catch (e) {
     console.error('切换置顶状态失败:', e)
+  }
+}
+
+async function exportSession(sessionId, sessionName, format) {
+  closeMenu()
+  try {
+    const res = await fetch(`/api/sessions/${sessionId}/export?format=${format}`, {
+      headers: { 'Authorization': `Bearer ${props.token}` }
+    })
+
+    if (res.ok) {
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${sessionName}.${format === 'markdown' ? 'md' : 'json'}`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    }
+  } catch (e) {
+    console.error('导出会话失败:', e)
   }
 }
 

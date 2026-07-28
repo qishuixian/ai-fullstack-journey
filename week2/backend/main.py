@@ -2,6 +2,7 @@
 import os
 import json
 import time
+from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -15,9 +16,10 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from dependencies import get_db
 from fastapi import WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 import json
 from io import BytesIO
+from urllib.parse import quote
 from auth import (
     SECRET_KEY, ALGORITHM, register_user, authenticate_user, create_access_token, get_current_user
 )
@@ -293,6 +295,81 @@ async def update_session(
     await db.commit()
     return {"message": "更新成功"}
 
+@app.get("/sessions/{session_id}/export")
+async def export_session(
+    session_id: str,
+    format: str = "json",
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 验证会话所有权
+    stmt = select(Session).where(
+        Session.id == session_id,
+        Session.user_id == current_user.id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    # 获取会话消息
+    stmt = select(ChatMessage).where(
+        ChatMessage.session_id == session_id
+    ).order_by(ChatMessage.created_at)
+    result = await db.execute(stmt)
+    messages = result.scalars().all()
+
+    if format == "markdown":
+        # 导出为 Markdown 格式
+        content = f"# {session.name}\n\n"
+        content += f"导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+        content += "---\n\n"
+
+        for msg in messages:
+            role_label = "用户" if msg.role == "user" else "AI助手"
+            content += f"## {role_label}\n\n"
+            content += f"{msg.content}\n\n"
+            content += f"*时间: {msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}*\n\n"
+            content += "---\n\n"
+
+        # URL 编码文件名
+        filename = quote(f"{session.name}.md")
+
+        # 返回文件响应
+        return Response(
+            content=content,
+            media_type="text/markdown",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}"
+            }
+        )
+    else:
+        # 默认导出为 JSON 格式
+        export_data = {
+            "session_id": session_id,
+            "session_name": session.name,
+            "export_time": datetime.now().isoformat(),
+            "messages": [
+                {
+                    "role": msg.role,
+                    "content": msg.content,
+                    "time": msg.created_at.isoformat()
+                }
+                for msg in messages
+            ]
+        }
+
+        # URL 编码文件名
+        filename = quote(f"{session.name}.json")
+
+        return Response(
+            content=json.dumps(export_data, ensure_ascii=False, indent=2),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}"
+            }
+        )
+
 @app.patch("/sessions/{session_id}/pin")
 async def toggle_pin_session(
     session_id: str,
@@ -357,4 +434,5 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 @app.get("/")
-async def roo
+async def root():
+    return {"message": "Backend is running!"}
