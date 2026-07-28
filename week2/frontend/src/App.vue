@@ -8,10 +8,12 @@
       <Sidebar
         :sessions="sessions"
         :current-session-id="currentSessionId"
+        :token="getToken()"
         @create-session="createSession"
         @switch-session="switchSession"
         @delete-session="deleteSession"
         @logout="handleLogout"
+        @session-updated="loadSessions"
       />
 
       <ChatArea
