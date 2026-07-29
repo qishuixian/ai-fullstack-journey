@@ -11,7 +11,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "element-plus": "^2.9.3",
+    "highlight.js": "^11.11.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2",
     "marked": "^18.0.7",
+    "marked-highlight": "^2.2.1",
+    "pinia": "^4.0.2",
+    "sortablejs": "^1.15.6",
     "vue": "^3.5.39"
   },
   "devDependencies": {

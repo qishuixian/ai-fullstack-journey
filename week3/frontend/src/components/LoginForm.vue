@@ -1,77 +1,115 @@
 <template>
   <div class="auth-page">
-    <div class="auth-card">
-      <h1 class="auth-title">🤖 AI 助手</h1>
-      <p class="auth-subtitle">登录后开始对话</p>
+    <el-card class="auth-card">
+      <template #header>
+        <div class="auth-header">
+          <h1 class="auth-title">🤖 AI 助手</h1>
+          <p class="auth-subtitle">登录后开始对话</p>
+        </div>
+      </template>
 
       <!-- 切换登录/注册 -->
-      <div class="auth-tabs">
-        <button :class="['tab-btn', { active: authMode === 'login' }]" @click="authMode = 'login'">登录</button>
-        <button :class="['tab-btn', { active: authMode === 'register' }]" @click="authMode = 'register'">注册</button>
-      </div>
+      <el-tabs v-model="authMode" class="auth-tabs">
+        <el-tab-pane label="登录" name="login"></el-tab-pane>
+        <el-tab-pane label="注册" name="register"></el-tab-pane>
+      </el-tabs>
 
-      <!-- 错误提示 -->
-      <div v-if="authError" class="auth-error">{{ authError }}</div>
-
-      <!-- 用户名输入 -->
-      <input
-        v-model="username"
-        class="auth-input"
-        placeholder="用户名"
+      <!-- 表单 -->
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="rules"
+        label-position="top"
         @keyup.enter="handleSubmit"
-      />
-
-      <!-- 密码输入 -->
-      <input
-        v-model="password"
-        type="password"
-        class="auth-input"
-        placeholder="密码"
-        @keyup.enter="handleSubmit"
-      />
-
-      <!-- 提交按钮 -->
-      <button
-        class="auth-submit"
-        :disabled="authLoading"
-        @click="handleSubmit"
       >
-        {{ authLoading ? '处理中...' : (authMode === 'login' ? '登录' : '注册') }}
-      </button>
-    </div>
+        <el-form-item label="用户名" prop="username">
+          <el-input
+            v-model="formData.username"
+            placeholder="请输入用户名"
+            :prefix-icon="User"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item label="密码" prop="password">
+          <el-input
+            v-model="formData.password"
+            type="password"
+            placeholder="请输入密码"
+            :prefix-icon="Lock"
+            show-password
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item>
+          <el-button
+            type="primary"
+            :loading="authLoading"
+            @click="handleSubmit"
+            style="width: 100%"
+          >
+            {{ authMode === 'login' ? '登录' : '注册' }}
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </el-card>
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue'
+<script setup lang="ts">
+import { ref, reactive } from 'vue'
+import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
+import type { FormInstance, FormRules } from 'element-plus'
 
 const emit = defineEmits(['login-success'])
 
 const authMode = ref('login')
-const username = ref('')
-const password = ref('')
-const authError = ref('')
 const authLoading = ref(false)
+const formRef = ref<FormInstance>()
+
+const formData = reactive({
+  username: '',
+  password: ''
+})
+
+// 表单校验规则
+const rules: FormRules = {
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度应为 3-20 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, max: 50, message: '密码长度应为 6-50 个字符', trigger: 'blur' }
+  ]
+}
 
 async function handleSubmit() {
-  if (authMode.value === 'login') {
-    await handleLogin()
-  } else {
-    await handleRegister()
-  }
+  if (!formRef.value) return
+
+  await formRef.value.validate(async (valid) => {
+    if (valid) {
+      if (authMode.value === 'login') {
+        await handleLogin()
+      } else {
+        await handleRegister()
+      }
+    }
+  })
 }
 
 async function handleLogin() {
-  authError.value = ''
   authLoading.value = true
   try {
-    const formData = new FormData()
-    formData.append('username', username.value)
-    formData.append('password', password.value)
+    const formDataToSend = new FormData()
+    formDataToSend.append('username', formData.username)
+    formDataToSend.append('password', formData.password)
 
     const res = await fetch('/api/token', {
       method: 'POST',
-      body: formData
+      body: formDataToSend
     })
 
     if (!res.ok) {
@@ -81,27 +119,28 @@ async function handleLogin() {
 
     const data = await res.json()
     localStorage.setItem('token', data.access_token)
-    username.value = ''
-    password.value = ''
+
+    ElMessage.success('登录成功！')
+    formData.username = ''
+    formData.password = ''
     emit('login-success')
   } catch (e) {
-    authError.value = e instanceof Error ? e.message : '登录失败'
+    ElMessage.error(e instanceof Error ? e.message : '登录失败')
   } finally {
     authLoading.value = false
   }
 }
 
 async function handleRegister() {
-  authError.value = ''
   authLoading.value = true
   try {
-    const formData = new FormData()
-    formData.append('username', username.value)
-    formData.append('password', password.value)
+    const formDataToSend = new FormData()
+    formDataToSend.append('username', formData.username)
+    formDataToSend.append('password', formData.password)
 
     const res = await fetch('/api/register', {
       method: 'POST',
-      body: formData
+      body: formDataToSend
     })
 
     if (!res.ok) {
@@ -109,10 +148,11 @@ async function handleRegister() {
       throw new Error(data.detail || '注册失败')
     }
 
+    ElMessage.success('注册成功！正在自动登录...')
     // 注册成功后自动登录
     await handleLogin()
   } catch (e) {
-    authError.value = e instanceof Error ? e.message : '注册失败'
+    ElMessage.error(e instanceof Error ? e.message : '注册失败')
   } finally {
     authLoading.value = false
   }
@@ -129,93 +169,31 @@ async function handleRegister() {
 }
 
 .auth-card {
-  background: white;
-  padding: 40px;
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-  width: 380px;
+  width: 420px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.auth-header {
+  text-align: center;
 }
 
 .auth-title {
-  font-size: 24px;
-  text-align: center;
-  margin-bottom: 8px;
+  font-size: 28px;
+  margin: 0 0 8px 0;
+  color: #303133;
 }
 
 .auth-subtitle {
-  text-align: center;
-  color: #666;
-  margin-bottom: 24px;
+  color: #909399;
+  margin: 0;
   font-size: 14px;
 }
 
 .auth-tabs {
-  display: flex;
   margin-bottom: 20px;
-  border-bottom: 2px solid #f0f0f0;
 }
 
-.tab-btn {
-  flex: 1;
-  padding: 10px;
-  background: none;
-  border: none;
-  font-size: 15px;
-  cursor: pointer;
-  color: #999;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: all 0.2s;
-}
-
-.tab-btn.active {
-  color: #1a73e8;
-  border-bottom-color: #1a73e8;
-  font-weight: bold;
-}
-
-.auth-input {
-  width: 100%;
-  padding: 12px 14px;
-  margin-bottom: 14px;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.auth-input:focus {
-  border-color: #1a73e8;
-}
-
-.auth-submit {
-  width: 100%;
-  padding: 12px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.auth-submit:hover:not(:disabled) {
-  background: #1557b0;
-}
-
-.auth-submit:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.auth-error {
-  background: #fce8e8;
-  color: #d93025;
-  padding: 10px 12px;
-  border-radius: 8px;
-  margin-bottom: 14px;
-  font-size: 13px;
+:deep(.el-tabs__nav-wrap::after) {
+  background-color: #f0f0f0;
 }
 </style>

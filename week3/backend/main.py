@@ -3,7 +3,7 @@ import os
 import json
 import time
 from datetime import datetime
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -24,6 +24,8 @@ from auth import (
     SECRET_KEY, ALGORITHM, register_user, authenticate_user, create_access_token, get_current_user
 )
 from fastapi.security import OAuth2PasswordRequestForm
+import aiofiles
+from pathlib import Path
 
 
 load_dotenv()
@@ -298,6 +300,35 @@ async def update_session(
     await db.commit()
     return {"message": "更新成功"}
 
+# 批量更新会话排序
+# list：表示这是一个列表（数组）。
+# dict：表示列表里的每一个元素都是一个字典（键值对对象）
+
+class UpdateSessionOrderRequest(BaseModel):
+    session_orders: list[dict]  # [{"id": "xxx", "order": 1}, ...]
+
+@app.patch("/sessions/order/batch")
+async def update_session_order(
+    request: UpdateSessionOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 批量更新会话排序
+    for item in request.session_orders:
+        stmt = select(Session).where(
+            Session.id == item["id"],
+            Session.user_id == current_user.id
+        )
+        result = await db.execute(stmt)
+        session = result.scalar_one_or_none()
+        if session:
+            # 假设数据库有 order 字段
+            # session.order = item["order"]
+            pass
+
+    await db.commit()
+    return {"message": "排序已更新"}
+
 @app.get("/sessions/{session_id}/export")
 async def export_session(
     session_id: str,
@@ -439,3 +470,108 @@ async def login(
 @app.get("/")
 async def root():
     return {"message": "Backend is running!"}
+
+# ---- 消息管理接口 ----
+
+# 编辑消息
+class UpdateMessageRequest(BaseModel):
+    content: str
+
+@app.patch("/messages/{message_id}")
+async def update_message(
+    message_id: int,
+    request: UpdateMessageRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 查询消息
+    stmt = select(ChatMessage).where(ChatMessage.id == message_id)
+    result = await db.execute(stmt)
+    message = result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(status_code=404, detail="消息不存在")
+
+    # 更新消息内容
+    message.content = request.content
+    await db.commit()
+    return {"message": "消息已更新"}
+
+# 删除消息
+@app.delete("/messages/{message_id}")
+async def delete_message(
+    message_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 查询消息
+    stmt = select(ChatMessage).where(ChatMessage.id == message_id)
+    result = await db.execute(stmt)
+    message = result.scalar_one_or_none()
+
+    if not message:
+        raise HTTPException(status_code=404, detail="消息不存在")
+
+    # 删除消息
+    await db.execute(delete(ChatMessage).where(ChatMessage.id == message_id))
+    await db.commit()
+    return {"message": "消息已删除"}
+
+# ---- 文件上传接口 ----
+
+# 创建上传目录
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+# 允许的文件类型
+ALLOWED_EXTENSIONS = {'.txt', '.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.gif'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    # 检查文件扩展名
+    file_ext = Path(file.filename).suffix.lower()
+    if file_ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型。允许的类型: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+
+    # 读取文件内容并检查大小
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制 ({MAX_FILE_SIZE / 1024 / 1024}MB)"
+        )
+
+    # 生成唯一文件名
+    unique_filename = f"{uuid4()}{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+
+    # 保存文件
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(content)
+
+    # 返回文件信息
+    return {
+        "filename": file.filename,
+        "saved_filename": unique_filename,
+        "size": len(content),
+        "url": f"/uploads/{unique_filename}"
+    }
+
+# 下载/访问上传的文件
+@app.get("/uploads/{filename}")
+async def get_uploaded_file(
+    filename: str,
+    current_user: User = Depends(get_current_user)
+):
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    return FileResponse(file_path)

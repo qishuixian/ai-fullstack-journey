@@ -1,86 +1,143 @@
-# Week 2 - AI 聊天应用（全栈实现）
+# Week 3 - AI 聊天应用进阶版
 
-一个功能完整的 AI 聊天应用，支持用户认证、多会话管理、实时通信、容器化部署。
+基于 Week2 的基础上，使用 **Element Plus** UI 框架重构界面，增强用户体验和交互功能。
 
 ## 📋 项目概述
 
-基于 **FastAPI + Vue 3 + WebSocket** 的全栈智能聊天应用，支持多会话管理、流式输出、Markdown 渲染，并提供 Docker 容器化部署方案。
+本周目标是将 Week2 的基础聊天应用升级为功能完善、体验优秀的企业级应用。
 
 ## 🛠️ 技术栈
 
-| 层级 | 技术 |
-| --- | --- |
-| 前端 | Vue 3 (Composition API)、TypeScript、Vite、Vitest、Marked.js |
-| 后端 | FastAPI、SQLAlchemy、SQLite + aiosqlite、JWT、WebSocket、DeepSeek API |
-| 部署 | Docker、Docker Compose、Nginx |
+### 前端
+- **框架**: Vue 3 + TypeScript
+- **UI 库**: Element Plus 2.9.3
+- **状态管理**: Pinia 2.3.2
+- **代码高亮**: Highlight.js 11.11.1
+- **Markdown**: Marked 18.0.7 + marked-highlight 2.2.1
+- **拖拽排序**: Sortable.js 1.15.6
+- **构建工具**: Vite 8.1.1
 
-## ✨ 功能特性
+### 后端
+- **框架**: FastAPI 0.139.2
+- **数据库**: SQLite + SQLAlchemy 2.0.51 + aiosqlite 0.22.1
+- **认证**: JWT (python-jose 3.5.0)
+- **AI 接口**: DeepSeek API (openai 2.48.0)
+- **文件处理**: aiofiles 25.1.0
 
-### ✅ 用户认证
-- 用户注册 / 登录
-- JWT Token 认证
-- 所有 API 接口鉴权保护
+## ✨ 功能实现进度
 
-### ✅ 多会话管理
-- 创建、切换、删除会话
-- 会话自动命名（根据第一条消息）
-- 会话编辑重命名
-- 会话置顶功能（📌）
-- 会话搜索 / 过滤
-- 会话导出（JSON / Markdown 格式）
+### ✅ Day 1: UI 框架选型与集成
+- 引入 Element Plus 组件库
+- 配置全局样式和主题 CSS 变量
+- 注册 Element Plus 图标库
 
-### ✅ 聊天功能
-- 流式响应（SSE）
-- Markdown 渲染
-- 消息历史记录持久化
-- 停止生成功能
-- 自动滚动到底部
+**核心文件**:
+- [frontend/src/main.ts](frontend/src/main.ts) - 全局配置
+- [frontend/src/styles/global.css](frontend/src/styles/global.css) - 全局样式
 
-### ✅ 实时通信
-- WebSocket 支持
-- 多用户在线状态
-- 实时消息广播
+### ✅ Day 2: 登录/注册页改造
+- 使用 ElForm + ElInput 重写登录表单
+- 添加表单校验规则（用户名 3-20 字符，密码 6-50 字符）
+- ElMessage 消息提示优化
+- 图标前缀增强视觉体验
 
-### ✅ 用户体验
-- 组件化设计
-- 响应式布局
-- 搜索过滤
-- 三点菜单操作
-- 加载状态提示
+**核心组件**:
+- [frontend/src/components/LoginForm.vue](frontend/src/components/LoginForm.vue)
+
+### ✅ Day 3: 会话侧边栏增强
+- 拖拽排序（Sortable.js）
+- 右键菜单/下拉菜单（ElDropdown）
+- 空状态提示（ElEmpty）
+- 搜索功能优化
+- 置顶会话（星标图标）
+
+**核心组件**:
+- [frontend/src/components/Sidebar.vue](frontend/src/components/Sidebar.vue)
+
+**功能特性**:
+- 拖拽排序会话（搜索时自动禁用）
+- 右键菜单：置顶、重命名、导出、删除
+- 导出格式：JSON / Markdown / PDF
+
+### ✅ Day 4: 聊天区体验升级
+- 代码块语法高亮（Highlight.js + GitHub Dark 主题）
+- 代码复制按钮（点击后 2 秒恢复）
+- Loading 动画（ElIcon 旋转）
+- Marked + marked-highlight 集成
+- 消息气泡优化
+
+**核心组件**:
+- [frontend/src/components/MessageList.vue](frontend/src/components/MessageList.vue)
+- [frontend/src/components/ChatArea.vue](frontend/src/components/ChatArea.vue)
+
+### ✅ Day 5: 主题切换（浅色/深色）
+- Pinia Store 管理主题状态
+- CSS 变量实现主题切换
+- localStorage 持久化主题
+- 根元素动态添加 `.dark` 类
+- 主题切换按钮（日/月图标）
+
+**核心文件**:
+- [frontend/src/stores/theme.ts](frontend/src/stores/theme.ts) - 主题状态管理
+- [frontend/src/styles/global.css](frontend/src/styles/global.css) - CSS 变量定义
+
+### ✅ Day 6: 消息编辑/删除 + 文件上传
+#### 后端功能
+- 消息编辑接口：`PATCH /messages/{message_id}`
+- 消息删除接口：`DELETE /messages/{message_id}`
+- 文件上传接口：`POST /upload`（限制 10MB，类型白名单）
+- 文件下载接口：`GET /uploads/{filename}`
+
+#### 前端功能
+- 消息编辑 UI（鼠标悬停显示编辑按钮）
+- 消息删除 UI（确认对话框）
+- 文件上传 UI（ElUpload + 回形针图标）
+- 消息搜索功能（🔍按钮切换搜索栏）
+- 实时搜索过滤消息内容
+
+**安全措施**:
+- 文件类型白名单验证
+- 文件大小限制（10MB）
+- UUID 唯一文件名防冲突
+
+### ✅ Day 7+: 额外功能增强
+- **会话拖拽排序持久化**（保存到后端）
+- **PDF 导出功能**（侧边栏菜单项）
+- **修复双 AI 消息 bug**（流式输出优化）
+- **完整的项目文档**
 
 ## 📁 项目结构
 
 ```
-week2/
-├── backend/                      # 后端代码
-│   ├── main.py                  # FastAPI 主程序
-│   ├── database.py              # 数据库模型
-│   ├── auth.py                  # 认证逻辑
-│   ├── dependencies.py          # 依赖注入
-│   ├── migrate_add_pinned.py    # 数据库迁移脚本
-│   ├── requirements.txt         # Python 依赖
-│   ├── .env                     # 环境变量（需自行创建）
-│   └── chat.db                  # SQLite 数据库（自动生成）
+week3/
+├── backend/
+│   ├── main.py              # FastAPI 主应用
+│   ├── auth.py              # JWT 认证逻辑
+│   ├── database.py          # SQLAlchemy 数据库模型
+│   ├── dependencies.py      # 依赖注入
+│   ├── requirements.txt     # Python 依赖
+│   ├── .env                 # 环境变量（需自行创建）
+│   └── uploads/             # 上传文件目录
 │
-├── frontend/                    # 前端代码
+├── frontend/
 │   ├── src/
-│   │   ├── components/          # Vue 组件
-│   │   │   ├── LoginForm.vue    # 登录/注册表单
-│   │   │   ├── Sidebar.vue      # 侧边栏
-│   │   │   ├── ChatArea.vue     # 聊天主区域
-│   │   │   ├── MessageList.vue  # 消息列表
-│   │   │   ├── ChatInput.vue    # 输入框
-│   │   │   └── __tests__/       # 组件测试
-│   │   ├── App.vue              # 根组件
-│   │   └── main.ts              # 入口文件
-│   ├── package.json             # 依赖配置
-│   └── vite.config.ts           # Vite 配置
+│   │   ├── components/
+│   │   │   ├── LoginForm.vue      # 登录/注册组件
+│   │   │   ├── Sidebar.vue        # 侧边栏组件
+│   │   │   ├── ChatArea.vue       # 聊天主区域
+│   │   │   ├── MessageList.vue    # 消息列表
+│   │   │   └── ChatInput.vue      # 输入框组件
+│   │   ├── stores/
+│   │   │   └── theme.ts           # 主题状态管理
+│   │   ├── styles/
+│   │   │   └── global.css         # 全局样式
+│   │   ├── App.vue                # 根组件
+│   │   └── main.ts                # 入口文件
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── README.md              # 前端开发文档
 │
-├── Dockerfile.backend           # 后端 Docker 配置
-├── Dockerfile.frontend          # 前端 Docker 配置
-├── docker-compose.yml           # Docker Compose 配置
-├── nginx.conf                   # Nginx 配置
-└── README.md                    # 项目文档
+└── README.md                  # 本文件
 ```
 
 ## 🚀 快速开始
@@ -89,42 +146,33 @@ week2/
 - Python 3.10+
 - Node.js 18+
 - npm 或 pnpm
-- Docker & Docker Compose（可选，用于容器化部署）
 
-### 1️⃣ 本地开发
-
-#### 后端设置
+### 后端设置
 
 ```bash
-# 进入后端目录
-cd week2/backend
+cd week3/backend
 
 # 创建虚拟环境
 python -m venv venv
-
-# 激活虚拟环境
-# Windows:
-venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # macOS/Linux
 
 # 安装依赖
 pip install -r requirements.txt
 
-# 创建 .env 文件并配置 API Key
+# 配置 .env 文件
 echo "DEEPSEEK_API_KEY=your_api_key_here" > .env
 
 # 运行后端
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload
 ```
 
-后端服务将在 `http://127.0.0.1:8000` 启动。
+后端服务：`http://127.0.0.1:8000`
 
-#### 前端设置
+### 前端设置
 
 ```bash
-# 进入前端目录
-cd week2/frontend
+cd week3/frontend
 
 # 安装依赖
 npm install
@@ -133,200 +181,132 @@ npm install
 npm run dev
 ```
 
-前端服务将在 `http://localhost:5173` 启动。
+前端服务：`http://localhost:5173`
 
-#### 访问应用
+## 📦 核心依赖版本
 
-打开浏览器访问 `http://localhost:5173`。
-
-### 2️⃣ Docker 容器化部署
-
-```bash
-# 构建并启动所有服务
-docker compose up --build -d
-
-# 查看日志
-docker compose logs -f
-
-# 查看容器状态
-docker compose ps
-
-# 重启服务
-docker compose restart
-
-# 停止并移除容器（数据卷保留）
-docker compose down
+### 前端
+```json
+{
+  "vue": "^3.5.39",
+  "element-plus": "^2.9.3",
+  "@element-plus/icons-vue": "^2.3.1",
+  "pinia": "^2.3.2",
+  "highlight.js": "^11.11.1",
+  "marked": "^18.0.7",
+  "marked-highlight": "^2.2.1",
+  "sortablejs": "^1.15.6"
+}
 ```
 
-服务将在以下端口启动：
+### 后端
+```txt
+fastapi==0.139.2
+sqlalchemy==2.0.51
+aiofiles==25.1.0
+python-jose[cryptography]==3.5.0
+openai==2.48.0
+```
 
-| 服务 | 地址 |
-| --- | --- |
-| 前端 | http://localhost:80 |
-| 后端 | http://localhost:8000 |
+## 🎯 相比 Week2 的改进
+
+| 功能 | Week2 | Week3 |
+|------|-------|-------|
+| UI 框架 | 原生 HTML/CSS | Element Plus |
+| 状态管理 | 无 | Pinia |
+| 代码高亮 | 无 | Highlight.js |
+| 拖拽排序 | 无 | Sortable.js ✅ |
+| 主题切换 | 无 | 浅色/深色 ✅ |
+| 文件上传 | 无 | 支持 ✅ |
+| 消息管理 | 无 | 编辑/删除 ✅ |
+| 消息搜索 | 无 | 实时搜索 ✅ |
+| PDF 导出 | 无 | 支持 ✅ |
+| 响应式设计 | 部分 | 完整 ✅ |
+
+## 🔮 未来优化方向
+
+- [ ] 移动端手势支持（左滑删除等）
+- [ ] 虚拟滚动优化长列表性能
+- [ ] 多语言支持（i18n）
+- [ ] PWA 支持（离线访问）
+- [ ] 语音输入功能
+- [ ] 消息引用/回复
+- [ ] 代码块主题切换
+- [ ] 会话分组管理
+
+## 💡 学习要点
+
+1. **Element Plus 集成**: 如何在 Vue 3 项目中集成和配置 UI 库
+2. **Pinia 状态管理**: Store 的创建、使用和持久化
+3. **CSS 变量主题**: 使用 CSS 自定义属性实现主题切换
+4. **代码高亮**: Highlight.js + Marked 的集成方案
+5. **拖拽排序**: Sortable.js 的基本使用和事件处理
+6. **文件上传**: FastAPI 文件上传处理和安全策略
+7. **响应式设计**: CSS Media Queries + 移动端适配
+8. **TypeScript**: Vue 3 + TypeScript 最佳实践
+
+## ❓ 常见问题
+
+### 1. Element Plus 样式不生效？
+确保在 `main.ts` 中导入了 `element-plus/dist/index.css`
+
+### 2. 代码高亮显示异常？
+检查是否导入了 highlight.js 的 CSS 主题文件：
+```ts
+import 'highlight.js/styles/github-dark.css'
+```
+
+### 3. 主题切换不持久化？
+确认 `theme.ts` 中的 `watch` 已正确设置 `immediate: true`
+
+### 4. 文件上传失败？
+检查：
+- 后端 `uploads/` 目录是否存在且有写入权限
+- 文件大小是否超过 10MB
+- 文件类型是否在白名单中
+
+### 5. requirements.txt 编码错误？
+使用提供的 ASCII 编码版本，或重新生成：
+```bash
+pip freeze > requirements.txt
+```
 
 ## 📖 API 接口文档
 
 ### 认证接口
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/register` | 用户注册 |
-| POST | `/token` | 用户登录 |
+- `POST /register` - 用户注册
+- `POST /token` - 用户登录
 
 ### 会话接口
-
-| 方法 | 路径 | 说明 | 需要认证 |
-| --- | --- | --- | --- |
-| GET | `/sessions` | 获取会话列表 | ✅ |
-| POST | `/sessions` | 创建新会话 | ✅ |
-| PATCH | `/sessions/{id}` | 更新会话名称 | ✅ |
-| PATCH | `/sessions/{id}/pin` | 置顶/取消置顶 | ✅ |
-| DELETE | `/sessions/{id}` | 删除会话 | ✅ |
-| GET | `/sessions/{id}/export` | 导出会话 | ✅ |
+- `GET /sessions` - 获取会话列表
+- `POST /sessions` - 创建新会话
+- `PATCH /sessions/{id}` - 更新会话名称
+- `PATCH /sessions/{id}/pin` - 置顶/取消置顶
+- `DELETE /sessions/{id}` - 删除会话
+- `GET /sessions/{id}/export?format={json|markdown}` - 导出会话
 
 ### 聊天接口
+- `POST /chat` - 非流式聊天
+- `POST /chat/stream` - 流式聊天（SSE）
+- `GET /history?session_id={id}` - 获取历史记录
 
-| 方法 | 路径 | 说明 | 需要认证 |
-| --- | --- | --- | --- |
-| POST | `/chat` | 非流式聊天 | ✅ |
-| POST | `/chat/stream` | 流式聊天（SSE） | ✅ |
-| GET | `/history` | 获取历史记录 | ✅ |
+### 消息接口（新增）
+- `PATCH /messages/{id}` - 编辑消息
+- `DELETE /messages/{id}` - 删除消息
+
+### 文件接口（新增）
+- `POST /upload` - 上传文件
+- `GET /uploads/{filename}` - 下载文件
 
 ### WebSocket
-
-| 路径 | 说明 |
-| --- | --- |
-| `/ws?token={token}` | WebSocket 连接 |
-
-## 🗄️ 数据库模型
-
-### User（用户表）
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | Integer | 主键 |
-| username | String | 用户名（唯一） |
-| hashed_password | String | 密码哈希 |
-| created_at | DateTime | 创建时间 |
-
-### Session（会话表）
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | String | 会话 ID（UUID） |
-| name | String | 会话名称 |
-| user_id | Integer | 用户 ID（外键） |
-| pinned | Boolean | 是否置顶 |
-| created_at | DateTime | 创建时间 |
-| updated_at | DateTime | 更新时间 |
-
-### ChatMessage（消息表）
-
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | Integer | 主键 |
-| role | String | 角色（user/assistant） |
-| content | Text | 消息内容 |
-| session_id | String | 会话 ID（外键） |
-| user_id | Integer | 用户 ID（外键） |
-| created_at | DateTime | 创建时间 |
-
-## 🔧 环境变量
-
-后端 `.env` 文件：
-
-```env
-DEEPSEEK_API_KEY=your_deepseek_api_key
-DATABASE_URL=sqlite+aiosqlite:///./chat.db
-```
-
-## 🧪 测试
-
-### 前端测试
-
-```bash
-cd frontend
-npm run test
-```
-
-### 后端测试
-
-```bash
-cd backend
-pytest
-```
-
-## 📅 开发日志
-
-| 日期 | 内容 |
-| --- | --- |
-| Day 7 | 数据库持久化（SQLAlchemy + SQLite，消息历史记录存储，异步数据库操作） |
-| Day 8 | 依赖注入、中间件、WebSocket（请求日志中间件，实时通信） |
-| Day 10 | 用户认证与多会话管理（JWT 身份认证，用户注册/登录，多会话管理，会话历史记录持久化） |
-| Day 11 | 组件化重构与功能增强（5 个组件拆分，会话置顶，搜索/过滤，导出，重命名，三点菜单，Token 验证全覆盖） |
-| Day 14 | Docker 容器化部署（Dockerfile 编写，Nginx 反向代理，docker-compose 编排，前后端容器联调） |
-
-## ❓ 常见问题
-
-**Q: 数据库表结构变更如何处理？**
-
-A: 使用提供的迁移脚本：
-
-```bash
-cd backend
-python migrate_add_pinned.py
-```
-
-**Q: 前端代理配置在哪里？**
-
-A: 查看 `frontend/vite.config.ts` 中的 `server.proxy` 配置。
-
-**Q: 如何修改 AI 模型？**
-
-A: 在 `backend/main.py` 的 `chat_stream` 函数中修改 `model` 参数。
-
-**Q: WebSocket 连接失败怎么办？**
-
-A: 检查：
-- Token 是否有效
-- 后端服务是否运行
-- 浏览器控制台是否有错误
-
-## 🌟 技术亮点
-
-- **前后端分离架构** — RESTful API + Vue SPA
-- **异步编程** — FastAPI async/await + SQLAlchemy async
-- **实时通信** — WebSocket + SSE 流式响应
-- **安全认证** — JWT Token + 密码哈希
-- **组件化设计** — Vue 3 Composition API
-- **响应式布局** — CSS Flexbox
-- **数据持久化** — SQLite + ORM
-- **代码质量** — 单元测试 + TypeScript
-- **容器化部署** — Docker + Docker Compose + Nginx
-
-## 🗺️ 下一步计划
-
-- [ ] 添加消息编辑 / 删除功能
-- [ ] 支持文件上传
-- [ ] 添加聊天记录全文搜索
-- [ ] 优化移动端体验
-- [ ] 添加主题切换（浅色 / 深色）
-- [ ] 集成更多 AI 模型
-- [ ] 添加语音输入
-- [ ] 实现消息引用 / 回复
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📄 许可证
-
-MIT License
+- `ws://localhost:8000/ws?token={token}` - 实时通信
 
 ## 👤 作者
 
 - 开发者：戚水仙
 - 时间：2026-07
-- 项目：AI 全栈学习之旅 - Week 2
+- 项目：AI 全栈学习之旅 - Week 3
 
+## 📄 许可证
+
+MIT License

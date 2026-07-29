@@ -1,35 +1,62 @@
 <template>
   <footer class="chat-input">
-    <input
+    <el-upload
+      ref="uploadRef"
+      :auto-upload="false"
+      :show-file-list="false"
+      :on-change="handleFileChange"
+      accept=".txt,.pdf,.doc,.docx,.jpg,.jpeg,.png,.gif"
+    >
+      <el-button :icon="Paperclip" circle title="上传文件" />
+    </el-upload>
+
+    <el-input
       v-model="inputValue"
-      placeholder="输入消息，按 Enter 发送"
-      @keyup.enter="handleSend"
+      type="textarea"
+      :rows="1"
+      :autosize="{ minRows: 1, maxRows: 4 }"
+      placeholder="输入消息，按 Ctrl+Enter 发送"
       :disabled="isLoading"
+      @keydown.ctrl.enter="handleSend"
+      @keydown.meta.enter="handleSend"
     />
-    <button @click="handleSend" :disabled="isLoading || !inputValue.trim()">
-      {{ isLoading ? '思考中...' : '发送' }}
-    </button>
-    <button v-if="isLoading" @click="$emit('stop')">停止</button>
+
+    <el-button
+      v-if="!isLoading"
+      type="primary"
+      :icon="Promotion"
+      @click="handleSend"
+      :disabled="!inputValue.trim()"
+      circle
+      title="发送"
+    />
+
+    <el-button
+      v-else
+      type="danger"
+      :icon="CircleClose"
+      @click="$emit('stop')"
+      circle
+      title="停止生成"
+    />
   </footer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Paperclip, Promotion, CircleClose } from '@element-plus/icons-vue'
+import type { UploadFile } from 'element-plus'
 
-const props = defineProps({
-  modelValue: {
-    type: String,
-    default: ''
-  },
-  isLoading: {
-    type: Boolean,
-    default: false
-  }
-})
+const props = defineProps<{
+  modelValue: string
+  isLoading: boolean
+}>()
 
-const emit = defineEmits(['update:modelValue', 'send', 'stop'])
+const emit = defineEmits(['update:modelValue', 'send', 'stop', 'file-upload'])
 
 const inputValue = ref(props.modelValue)
+const uploadRef = ref()
 
 watch(() => props.modelValue, (newVal) => {
   inputValue.value = newVal
@@ -45,45 +72,46 @@ function handleSend() {
     inputValue.value = ''
   }
 }
+
+function handleFileChange(uploadFile: UploadFile) {
+  const file = uploadFile.raw
+  if (!file) return
+
+  // 检查文件大小（10MB）
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    ElMessage.error('文件大小不能超过 10MB')
+    return
+  }
+
+  // 发送文件上传事件
+  emit('file-upload', file)
+
+  // 清空上传组件
+  if (uploadRef.value) {
+    uploadRef.value.clearFiles()
+  }
+}
 </script>
 
 <style scoped>
 .chat-input {
   display: flex;
-  padding: 12px 16px;
-  border-top: 1px solid #e0e0e0;
-  gap: 8px;
+  align-items: flex-end;
+  padding: 16px;
+  gap: 12px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-primary);
 }
 
-.chat-input input {
-  flex: 1;
+.chat-input :deep(.el-textarea__inner) {
+  resize: none;
   padding: 10px 14px;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
   font-size: 14px;
-  outline: none;
+  line-height: 1.5;
 }
 
-.chat-input input:focus {
-  border-color: #1a73e8;
-}
-
-.chat-input button {
-  padding: 10px 20px;
-  background: #1a73e8;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.chat-input button:hover:not(:disabled) {
-  background: #1557b0;
-}
-
-.chat-input button:disabled {
-  background: #ccc;
-  cursor: not-allowed;
+.chat-input :deep(.el-button.is-circle) {
+  flex-shrink: 0;
 }
 </style>

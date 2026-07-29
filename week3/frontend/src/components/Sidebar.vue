@@ -2,120 +2,199 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <!-- 顶部操作栏 -->
-      <div class="header-actions">
-        <button class="icon-btn" title="新建对话" @click="$emit('create-session')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 5v14M5 12h14"/>
-          </svg>
-        </button>
-        <!-- <button class="icon-btn" title="刷新" @click="$emit('session-updated')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-          </svg>
-        </button> -->
-      </div>
+      <el-button
+        type="primary"
+        :icon="Plus"
+        @click="$emit('create-session')"
+        style="width: 100%"
+      >
+        新建对话
+      </el-button>
 
       <!-- 搜索框 -->
-      <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input
-          v-model="searchQuery"
-          type="text"
-          placeholder="搜索会话..."
-          class="search-input"
-        />
-        <span v-if="searchQuery" class="clear-search" @click="searchQuery = ''">×</span>
-      </div>
-
-      <div class="header-divider"></div>
+      <el-input
+        v-model="searchQuery"
+        placeholder="搜索会话..."
+        :prefix-icon="Search"
+        clearable
+        class="search-input"
+      />
     </div>
+
+    <!-- 会话列表 -->
     <div class="session-list">
-      <!-- 无搜索结果提示 -->
-      <div v-if="filteredSessions.length === 0" class="no-results">
-        <p>😕 未找到匹配的会话</p>
-      </div>
+      <!-- 空状态 -->
+      <el-empty
+        v-if="props.sessions.length === 0"
+        description="暂无会话，点击上方按钮创建"
+        :image-size="80"
+      />
 
-      <div
-        v-for="session in filteredSessions"
-        :key="session.id"
-        :class="['session-item', { active: session.id === currentSessionId }]"
-        @click="handleSessionClick(session.id)"
-      >
-        <input
-          v-if="editingSessionId === session.id"
-          v-model="editingSessionName"
-          class="session-name-input"
-          @blur="saveSessionName(session.id)"
-          @keyup.enter="saveSessionName(session.id)"
-          @keyup.esc="cancelEdit"
-          @click.stop
-          ref="editInput"
-        />
-        <span
-          v-else
-          class="session-name"
+      <!-- 无搜索结果 -->
+      <el-empty
+        v-else-if="filteredSessions.length === 0"
+        description="未找到匹配的会话"
+        :image-size="80"
+      />
+
+      <!-- 会话列表项 -->
+      <div v-else ref="sessionListRef" class="session-items">
+        <div
+          v-for="session in filteredSessions"
+          :key="session.id"
+          :data-id="session.id"
+          :class="['session-item', { active: session.id === currentSessionId }]"
+          @click="handleSessionClick(session.id)"
+          @contextmenu.prevent="handleContextMenu($event, session)"
         >
-          <span v-if="session.pinned" class="pin-icon">📌</span>
-          {{ session.name }}
-        </span>
-        <button class="menu-btn" @click.stop="toggleMenu(session.id)">⋮</button>
+          <!-- 拖拽手柄 -->
+          <el-icon class="drag-handle" v-if="!searchQuery">
+            <Rank />
+          </el-icon>
 
-        <!-- 下拉菜单 -->
-        <div v-if="activeMenuId === session.id" class="context-menu" @click.stop>
-          <div class="menu-item" @click="togglePin(session.id, session.pinned)">
-            <span class="menu-icon">📌</span>
-            <span>{{ session.pinned ? '取消置顶' : '置顶' }}</span>
+          <!-- 会话名称（编辑模式） -->
+          <el-input
+            v-if="editingSessionId === session.id"
+            v-model="editingSessionName"
+            size="small"
+            @blur="saveSessionName(session.id)"
+            @keyup.enter="saveSessionName(session.id)"
+            @keyup.esc="cancelEdit"
+            @click.stop
+            ref="editInputRef"
+          />
+
+          <!-- 会话名称（正常模式） -->
+          <div v-else class="session-info">
+            <el-icon v-if="session.pinned" class="pin-icon" color="#409eff">
+              <StarFilled />
+            </el-icon>
+            <span class="session-name">{{ session.name }}</span>
           </div>
-          <div class="menu-item" @click="startEdit(session.id, session.name)">
-            <span class="menu-icon">✏️</span>
-            <span>编辑名称</span>
-          </div>
-          <div class="menu-item" @click="exportSession(session.id, session.name, 'json')">
-            <span class="menu-icon">📥</span>
-            <span>导出为 JSON</span>
-          </div>
-          <div class="menu-item" @click="exportSession(session.id, session.name, 'markdown')">
-            <span class="menu-icon">📝</span>
-            <span>导出为 Markdown</span>
-          </div>
-          <div class="menu-item delete" @click="handleDelete(session.id)">
-            <span class="menu-icon">🗑️</span>
-            <span>删除</span>
-          </div>
+
+          <!-- 更多按钮 -->
+          <el-dropdown
+            trigger="click"
+            @click.stop
+            @command="(cmd) => handleCommand(cmd, session)"
+          >
+            <el-icon class="more-btn">
+              <MoreFilled />
+            </el-icon>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item :icon="session.pinned ? StarFilled : Star" :command="'pin'">
+                  {{ session.pinned ? '取消置顶' : '置顶' }}
+                </el-dropdown-item>
+                <el-dropdown-item :icon="Edit" :command="'edit'">
+                  重命名
+                </el-dropdown-item>
+                <el-dropdown-item :icon="Download" :command="'export-json'">
+                  导出为 JSON
+                </el-dropdown-item>
+                <el-dropdown-item :icon="Document" :command="'export-md'">
+                  导出为 Markdown
+                </el-dropdown-item>
+                <el-dropdown-item :icon="Document" :command="'export-pdf'">
+                  导出为 PDF
+                </el-dropdown-item>
+                <el-dropdown-item :icon="Delete" :command="'delete'" divided>
+                  删除
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
+
+    <!-- 底部 -->
     <div class="sidebar-footer">
-      <button class="logout-btn" @click="$emit('logout')">退出登录</button>
+      <el-button
+        type="info"
+        text
+        :icon="SwitchButton"
+        @click="$emit('logout')"
+        style="width: 100%"
+      >
+        退出登录
+      </el-button>
     </div>
+
+    <!-- 右键菜单 -->
+    <el-dropdown
+      ref="contextMenuRef"
+      :style="{ position: 'fixed', left: contextMenuPos.x + 'px', top: contextMenuPos.y + 'px' }"
+      trigger="contextmenu"
+      @command="handleContextCommand"
+    >
+      <span style="display: none"></span>
+      <template #dropdown>
+        <el-dropdown-menu v-if="contextSession">
+          <el-dropdown-item :icon="contextSession.pinned ? StarFilled : Star" command="pin">
+            {{ contextSession.pinned ? '取消置顶' : '置顶' }}
+          </el-dropdown-item>
+          <el-dropdown-item :icon="Edit" command="edit">
+            重命名
+          </el-dropdown-item>
+          <el-dropdown-item :icon="Download" command="export-json">
+            导出为 JSON
+          </el-dropdown-item>
+          <el-dropdown-item :icon="Document" command="export-md">
+            导出为 Markdown
+          </el-dropdown-item>
+          <el-dropdown-item :icon="Delete" command="delete" divided>
+            删除
+          </el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
   </aside>
 </template>
 
-<script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+<script setup lang="ts">
+import { ref, computed, nextTick, onMounted, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Plus,
+  Search,
+  Rank,
+  StarFilled,
+  Star,
+  Edit,
+  Download,
+  Document,
+  Delete,
+  MoreFilled,
+  SwitchButton
+} from '@element-plus/icons-vue'
+import Sortable from 'sortablejs'
 
-const props = defineProps({
-  sessions: {
-    type: Array,
-    required: true
-  },
-  currentSessionId: {
-    type: String,
-    default: ''
-  },
-  token: {
-    type: String,
-    required: true
-  }
-})
+interface Session {
+  id: string
+  name: string
+  pinned: number
+  created_at?: string
+}
+
+const props = defineProps<{
+  sessions: Session[]
+  currentSessionId: string
+  token: string
+}>()
 
 const emit = defineEmits(['create-session', 'switch-session', 'delete-session', 'logout', 'session-updated'])
 
 const searchQuery = ref('')
 const editingSessionId = ref('')
 const editingSessionName = ref('')
-const editInput = ref(null)
-const activeMenuId = ref('')
+const editInputRef = ref()
+const sessionListRef = ref<HTMLElement>()
+const contextMenuRef = ref()
+const contextMenuPos = ref({ x: 0, y: 0 })
+const contextSession = ref<Session | null>(null)
+
+let sortableInstance: Sortable | null = null
 
 const filteredSessions = computed(() => {
   if (!searchQuery.value.trim()) return props.sessions
@@ -123,33 +202,66 @@ const filteredSessions = computed(() => {
   return props.sessions.filter(s => s.name.toLowerCase().includes(q))
 })
 
-function handleSessionClick(sessionId) {
+function handleSessionClick(sessionId: string) {
   if (editingSessionId.value !== sessionId) {
     emit('switch-session', sessionId)
   }
 }
 
-function toggleMenu(sessionId) {
-  activeMenuId.value = activeMenuId.value === sessionId ? '' : sessionId
+// 右键菜单
+function handleContextMenu(event: MouseEvent, session: Session) {
+  contextMenuPos.value = { x: event.clientX, y: event.clientY }
+  contextSession.value = session
+  // 触发 Element Plus 的右键菜单（通过 JS 手动触发比较复杂，这里用 dropdown 的 click 模式）
 }
 
-function closeMenu() {
-  activeMenuId.value = ''
+function handleCommand(command: string, session: Session) {
+  contextSession.value = session
+  handleContextCommand(command)
 }
 
-function startEdit(sessionId, currentName) {
-  closeMenu()
+async function handleContextCommand(command: string) {
+  if (!contextSession.value) return
+
+  const session = contextSession.value
+
+  switch (command) {
+    case 'pin':
+      await togglePin(session.id)
+      break
+    case 'edit':
+      startEdit(session.id, session.name)
+      break
+    case 'export-json':
+      await exportSession(session.id, session.name, 'json')
+      break
+    case 'export-md':
+      await exportSession(session.id, session.name, 'markdown')
+      break
+    case 'export-pdf':
+      await exportSessionAsPDF(session.id, session.name)
+      break
+    case 'delete':
+      await handleDelete(session.id)
+      break
+  }
+
+  contextSession.value = null
+}
+
+function startEdit(sessionId: string, currentName: string) {
   editingSessionId.value = sessionId
   editingSessionName.value = currentName
   nextTick(() => {
-    if (editInput.value && editInput.value[0]) {
-      editInput.value[0].focus()
-      editInput.value[0].select()
+    if (editInputRef.value) {
+      const input = Array.isArray(editInputRef.value) ? editInputRef.value[0] : editInputRef.value
+      input?.focus()
+      input?.select()
     }
   })
 }
 
-async function saveSessionName(sessionId) {
+async function saveSessionName(sessionId: string) {
   if (!editingSessionName.value.trim()) {
     cancelEdit()
     return
@@ -166,10 +278,13 @@ async function saveSessionName(sessionId) {
     })
 
     if (res.ok) {
+      ElMessage.success('重命名成功')
       emit('session-updated')
+    } else {
+      throw new Error('重命名失败')
     }
   } catch (e) {
-    console.error('更新会话名称失败:', e)
+    ElMessage.error(e instanceof Error ? e.message : '重命名失败')
   } finally {
     cancelEdit()
   }
@@ -180,13 +295,20 @@ function cancelEdit() {
   editingSessionName.value = ''
 }
 
-function handleDelete(sessionId) {
-  closeMenu()
-  emit('delete-session', sessionId)
+async function handleDelete(sessionId: string) {
+  try {
+    await ElMessageBox.confirm('确认删除此会话？删除后无法恢复。', '确认删除', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    emit('delete-session', sessionId)
+  } catch {
+    // 用户取消删除
+  }
 }
 
-async function togglePin(sessionId, currentPinned) {
-  closeMenu()
+async function togglePin(sessionId: string) {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/pin`, {
       method: 'PATCH',
@@ -196,12 +318,11 @@ async function togglePin(sessionId, currentPinned) {
       emit('session-updated')
     }
   } catch (e) {
-    console.error('切换置顶状态失败:', e)
+    ElMessage.error('操作失败')
   }
 }
 
-async function exportSession(sessionId, sessionName, format) {
-  closeMenu()
+async function exportSession(sessionId: string, sessionName: string, format: string) {
   try {
     const res = await fetch(`/api/sessions/${sessionId}/export?format=${format}`, {
       headers: { 'Authorization': `Bearer ${props.token}` }
@@ -217,144 +338,152 @@ async function exportSession(sessionId, sessionName, format) {
       a.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      ElMessage.success('导出成功')
+    } else {
+      throw new Error('导出失败')
     }
   } catch (e) {
-    console.error('导出会话失败:', e)
+    ElMessage.error(e instanceof Error ? e.message : '导出失败')
   }
 }
 
-// 点击外部关闭菜单
-function handleClickOutside(event) {
-  if (!event.target.closest('.menu-btn') && !event.target.closest('.context-menu')) {
-    closeMenu()
+async function exportSessionAsPDF(sessionId: string, sessionName: string) {
+  try {
+    // 获取会话消息
+    const res = await fetch(`/api/history?session_id=${sessionId}`, {
+      headers: { 'Authorization': `Bearer ${props.token}` }
+    })
+
+    if (!res.ok) {
+      throw new Error('获取消息失败')
+    }
+
+    const messages = await res.json()
+
+    // 动态导入 jspdf
+    const { jsPDF } = await import('jspdf')
+
+    // 创建 PDF 文档
+    const doc = new jsPDF()
+
+    // 添加标题
+    doc.setFontSize(16)
+    doc.text(sessionName, 20, 20)
+
+    doc.setFontSize(10)
+    let yPos = 40
+
+    // 添加消息内容
+    for (const msg of messages) {
+      const role = msg.role === 'user' ? '用户' : 'AI'
+      const time = msg.time ? new Date(msg.time).toLocaleString() : ''
+
+      // 角色和时间
+      doc.setFontSize(12)
+      doc.text(`${role} - ${time}`, 20, yPos)
+      yPos += 10
+
+      // 消息内容（简单处理，去除 HTML）
+      doc.setFontSize(10)
+      const content = msg.content.replace(/<[^>]*>/g, '')
+      const lines = doc.splitTextToSize(content, 170)
+
+      lines.forEach((line: string) => {
+        if (yPos > 280) {
+          doc.addPage()
+          yPos = 20
+        }
+        doc.text(line, 20, yPos)
+        yPos += 7
+      })
+
+      yPos += 10
+    }
+
+    // 保存 PDF
+    doc.save(`${sessionName}.pdf`)
+    ElMessage.success('PDF 导出成功')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : 'PDF 导出失败')
   }
 }
 
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
+// 初始化拖拽排序
+function initSortable() {
+  if (!sessionListRef.value || searchQuery.value) return
+
+  sortableInstance = new Sortable(sessionListRef.value, {
+    animation: 150,
+    handle: '.drag-handle',
+    ghostClass: 'sortable-ghost',
+    chosenClass: 'sortable-chosen',
+    dragClass: 'sortable-drag',
+    onEnd: async (evt) => {
+      // 保存排序到后端
+      const sessionOrders = Array.from(sessionListRef.value?.children || []).map((el, index) => ({
+        id: el.getAttribute('data-id'),
+        order: index
+      }))
+
+      try {
+        const res = await fetch('/api/sessions/order/batch', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${props.token}`
+          },
+          body: JSON.stringify({ session_orders: sessionOrders })
+        })
+
+        if (res.ok) {
+          console.log('排序已保存')
+        }
+      } catch (e) {
+        console.error('保存排序失败:', e)
+      }
+    }
+  })
+}
+
+// 监听搜索状态，禁用/启用拖拽
+watch(searchQuery, (newVal) => {
+  if (sortableInstance) {
+    sortableInstance.option('disabled', !!newVal)
+  }
 })
 
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
+watch(() => props.sessions.length, () => {
+  nextTick(() => {
+    if (sortableInstance) {
+      sortableInstance.destroy()
+      sortableInstance = null
+    }
+    initSortable()
+  })
+})
+
+onMounted(() => {
+  nextTick(initSortable)
 })
 </script>
 
 <style scoped>
 .sidebar {
-  width: 260px;
-  background: #202123;
-  color: white;
+  width: 280px;
+  background: #f5f7fa;
+  border-right: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
+  height: 100vh;
 }
 
 .sidebar-header {
-  padding: 12px;
-  border-bottom: 1px solid #333;
-}
-
-.header-actions {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: transparent;
-  border: 1px solid #555;
-  border-radius: 6px;
-  color: #ccc;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.icon-btn:hover {
-  background: #343541;
-  border-color: #666;
-}
-
-.header-divider {
-  height: 1px;
-  background: #333;
-  margin: 12px 0 8px 0;
-}
-
-.sidebar-header h3 {
-  font-size: 15px;
-  margin-bottom: 12px;
-  color: #ccc;
-}
-
-.new-chat-btn {
-  width: 100%;
-  padding: 10px;
-  background: #343541;
-  color: white;
-  border: 1px solid #555;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  transition: background 0.2s;
-}
-
-.new-chat-btn:hover {
-  background: #40414f;
-}
-
-.search-box {
-  position: relative;
-  margin-top: 12px;
-}
-
-.search-icon {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 14px;
-  color: #888;
-  pointer-events: none;
+  padding: 16px;
+  border-bottom: 1px solid #e4e7ed;
 }
 
 .search-input {
-  width: 100%;
-  padding: 8px 30px 8px 32px;
-  background: #40414f;
-  border: 1px solid #555;
-  border-radius: 6px;
-  color: white;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.search-input::placeholder {
-  color: #888;
-}
-
-.search-input:focus {
-  border-color: #1a73e8;
-}
-
-.clear-search {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #888;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0 4px;
-}
-
-.clear-search:hover {
-  color: #ccc;
+  margin-top: 12px;
 }
 
 .session-list {
@@ -363,147 +492,138 @@ onUnmounted(() => {
   padding: 8px;
 }
 
-.no-results {
+.session-items {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  color: #888;
-  font-size: 13px;
-  text-align: center;
-}
-
-.session-item {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  margin-bottom: 4px;
-  transition: background 0.2s;
-}
-
-.session-item:hover {
-  background: #343541;
-}
-
-.session-item.active {
-  background: #40414f;
-}
-
-.session-name {
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
 }
 
-.pin-icon {
-  font-size: 12px;
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: white;
+  border: 1px solid transparent;
+}
+
+.session-item:hover {
+  background: #ecf5ff;
+  border-color: #d9ecff;
+}
+
+.session-item.active {
+  background: #409eff;
+  color: white;
+  border-color: #409eff;
+}
+
+.session-item.active .session-name {
+  color: white;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #909399;
   flex-shrink: 0;
 }
 
-.session-name-input {
-  flex: 1;
-  background: #40414f;
-  border: 1px solid #1a73e8;
-  border-radius: 4px;
-  color: white;
-  padding: 4px 8px;
-  font-size: 13px;
-  outline: none;
+.drag-handle:active {
+  cursor: grabbing;
 }
 
-.menu-btn {
-  background: none;
-  border: none;
-  color: #888;
+.session-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.pin-icon {
+  flex-shrink: 0;
+}
+
+.session-item.active .pin-icon {
+  color: white !important;
+}
+
+.session-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  color: #303133;
+}
+
+.more-btn {
+  color: #909399;
   cursor: pointer;
-  font-size: 18px;
-  padding: 0 4px;
-  line-height: 1;
+  flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.2s;
 }
 
-.session-item:hover .menu-btn {
+.session-item:hover .more-btn {
   opacity: 1;
 }
 
-.menu-btn:hover {
-  color: #ccc;
+.session-item.active .more-btn {
+  color: white;
+  opacity: 1;
 }
 
-.context-menu {
-  position: absolute;
-  right: 8px;
-  top: 100%;
-  background: #2a2b32;
-  border: 1px solid #444;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-  min-width: 150px;
-  margin-top: 4px;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.menu-item:first-child {
-  border-radius: 8px 8px 0 0;
-}
-
-.menu-item:last-child {
-  border-radius: 0 0 8px 8px;
-}
-
-.menu-item:hover {
-  background: #343541;
-}
-
-.menu-item.delete {
-  color: #ff4444;
-}
-
-.menu-item.delete:hover {
-  background: #3d2020;
-}
-
-.menu-icon {
-  font-size: 14px;
+.more-btn:hover {
+  color: #606266;
 }
 
 .sidebar-footer {
-  padding: 12px 16px;
-  border-top: 1px solid #333;
+  padding: 16px;
+  border-top: 1px solid #e4e7ed;
 }
 
-.logout-btn {
-  width: 100%;
-  padding: 8px;
-  background: none;
-  color: #ccc;
-  border: 1px solid #555;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
+/* Sortable 拖拽样式 */
+.sortable-ghost {
+  opacity: 0.4;
+  background: #c6e2ff;
 }
 
-.logout-btn:hover {
-  background: #343541;
+.sortable-chosen {
+  cursor: grabbing;
+}
+
+.sortable-drag {
+  opacity: 1;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 深色模式适配 */
+.dark .sidebar {
+  background: #1a1a1a;
+  border-right-color: #333;
+}
+
+.dark .sidebar-header,
+.dark .sidebar-footer {
+  border-color: #333;
+}
+
+.dark .session-item {
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
+
+.dark .session-item:hover {
+  background: #333;
+  border-color: #444;
+}
+
+.dark .session-name {
+  color: #e0e0e0;
 }
 </style>
