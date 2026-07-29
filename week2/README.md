@@ -213,8 +213,14 @@ docker-compose up -d
 # 查看日志
 docker-compose logs -f
 
-# 停止服务
+# # 停掉并删容器（数据卷保留）
 docker-compose down
+
+# 看容器状态
+docker compose ps  
+
+# 重启     
+docker compose restart    
 ```
 
 服务将在以下端口启动：
