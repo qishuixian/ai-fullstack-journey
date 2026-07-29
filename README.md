@@ -15,7 +15,10 @@
 | Day 5 | Vue3 前端对接 & 流式渲染（打字机效果） | ✅ |
 | Day 6 | 时间显示、本地持久化、Markdown 渲染 | ✅ |
 | Day 7 | SQLite 数据库持久化（SQLAlchemy async） | ✅ |
-| Week 2+ | Docker 打包 & 云服务器部署 | 🔜 |
+| Day 8 | 依赖注入、中间件、WebSocket 实时通信 | ✅ |
+| Day 10 | JWT 认证 & 多会话管理 | ✅ |
+| Day 11 | 组件化重构（5 个组件）& 功能增强（置顶/搜索/导出） | ✅ |
+| Day 14 | Docker 容器化部署（Dockerfile + docker-compose + Nginx） | ✅ |
 
 ### Month 2 · RAG 知识库
 
@@ -47,8 +50,21 @@ ai-fullstack-journey/
 │   └── frontend/
 │       └── src/
 │           └── App.vue         ← Day 5-6: Vue3 聊天界面
-├── week2/
-│   └── backend/                ← Week 2 练习代码
+├── week2/                      ← Week 2: 完整全栈项目
+│   ├── backend/
+│   │   ├── main.py             ← FastAPI + JWT + WebSocket
+│   │   ├── database.py         ← SQLAlchemy 数据模型
+│   │   ├── auth.py             ← 认证逻辑
+│   │   └── dependencies.py     ← 依赖注入
+│   ├── frontend/
+│   │   └── src/
+│   │       ├── components/     ← 5 个 Vue 组件
+│   │       └── App.vue
+│   ├── Dockerfile.backend      ← 后端容器化
+│   ├── Dockerfile.frontend     ← 前端容器化
+│   ├── docker-compose.yml      ← 服务编排
+│   ├── nginx.conf              ← 反向代理配置
+│   └── README.md               ← 详细项目文档
 ├── .gitignore
 └── README.md
 ```
@@ -57,11 +73,12 @@ ai-fullstack-journey/
 
 | 层 | 技术 |
 |----|------|
-| 前端 | Vue 3, TypeScript, Vite, marked.js |
-| 后端 | Python, FastAPI, Pydantic, SSE |
+| 前端 | Vue 3, TypeScript, Vite, Vitest, marked.js |
+| 后端 | Python, FastAPI, Pydantic, SQLAlchemy, JWT, WebSocket, SSE |
 | AI 模型 | DeepSeek API（openai 兼容格式） |
-| 数据库 | SQLite + SQLAlchemy（async） |
-| 规划中 | LangChain, LangGraph, ChromaDB, Docker, vLLM |
+| 数据库 | SQLite + SQLAlchemy（async） + aiosqlite |
+| 部署 | Docker, Docker Compose, Nginx |
+| 规划中 | LangChain, LangGraph, ChromaDB, vLLM |
 
 ## 相关链接
 
