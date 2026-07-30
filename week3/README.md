@@ -183,6 +183,25 @@ npm run dev
 
 前端服务：`http://localhost:5173`
 
+### Docker 容器化部署
+
+```bash
+# 构建并启动所有服务
+docker compose up --build -d
+
+# 查看日志
+docker compose logs -f
+
+# 查看容器状态
+docker compose ps
+
+# 重启服务
+docker compose restart
+
+# 停止并移除容器（数据卷保留）
+docker compose down
+```
+
 ## 📦 核心依赖版本
 
 ### 前端
