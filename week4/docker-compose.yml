@@ -1,13 +1,23 @@
 version: '3.8'
-
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     volumes:
-      # 使用 bind mount：将宿主机的 ./data 目录挂载到容器的 /app/data
-      - ./data:/app/data
+      - ./backend:/app
+      - backend_data:/app/data
     environment:
       - DATABASE_URL=sqlite+aiosqlite:////app/data/app.db
-    restart: unless-stopped 
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"       # 前端通过 8080 端口访问
+    depends_on:
+      - backend         # 确保后端先启动
+    restart: always
+
+volumes:
+  backend_data:

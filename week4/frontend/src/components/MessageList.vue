@@ -114,7 +114,6 @@ const props = defineProps<{
 const emit = defineEmits(['message-updated', 'message-deleted'])
 
 const messagesContainer = ref<HTMLElement>()
-const contentRefs = ref<HTMLElement[]>([])
 const hoveredIndex = ref(-1)
 const editingIndex = ref(-1)
 const editingContent = ref('')

@@ -76,7 +76,7 @@
           <el-dropdown
             trigger="click"
             @click.stop
-            @command="(cmd) => handleCommand(cmd, session)"
+            @command="(cmd: string) => handleCommand(cmd, session)"
           >
             <el-icon class="more-btn">
               <MoreFilled />
@@ -190,11 +190,10 @@ const editingSessionId = ref('')
 const editingSessionName = ref('')
 const editInputRef = ref()
 const sessionListRef = ref<HTMLElement>()
-const contextMenuRef = ref()
 const contextMenuPos = ref({ x: 0, y: 0 })
 const contextSession = ref<Session | null>(null)
 
-let sortableInstance: Sortable | null = null
+let sortableInstance: any = null
 
 const filteredSessions = computed(() => {
   if (!searchQuery.value.trim()) return props.sessions
@@ -418,7 +417,7 @@ function initSortable() {
     ghostClass: 'sortable-ghost',
     chosenClass: 'sortable-chosen',
     dragClass: 'sortable-drag',
-    onEnd: async (evt) => {
+    onEnd: async () => {
       // 保存排序到后端
       const sessionOrders = Array.from(sessionListRef.value?.children || []).map((el, index) => ({
         id: el.getAttribute('data-id'),
