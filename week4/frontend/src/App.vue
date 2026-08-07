@@ -151,7 +151,8 @@ function connectWebSocket() {
   const token = getToken()
   if (!token) return
 
-  ws.value = new WebSocket(`ws://127.0.0.1:8000/ws?token=${token}`)
+  const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  ws.value = new WebSocket(`${wsProtocol}//${location.host}/ws?token=${token}`)
 
   ws.value.onopen = () => {
     console.log('✅ WebSocket 连接成功')

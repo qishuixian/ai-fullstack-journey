@@ -5,7 +5,6 @@ python -m pip install -r requirements.txt  # 安装依赖
 
 uvicorn main:app --reload --port 8000
 python -m uvicorn main:app --reload --port 8000
-python -m pip install sqlalchemy aiosqlite
 
 查看 Swagger 文档
 http://127.0.0.1:8000/docs

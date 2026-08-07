@@ -1,0 +1,29 @@
+services:
+  backend:
+    image: chat-backend:latest
+    container_name: chat-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/app.db
+    restart: always
+    networks:
+      - mynet
+
+  frontend:
+    image: chat-frontend:latest
+    container_name: chat-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - mynet
+
+networks:
+  mynet:
+    driver: bridge
