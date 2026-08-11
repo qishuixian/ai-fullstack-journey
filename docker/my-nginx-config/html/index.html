@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Nginx Test</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        h1 { color: #333; }
+    </style>
+</head>
+<body>
+    <h1>Hello Fullstack!</h1>
+    当前时间2222：<span id="time"></span>
+    <script>
+        // 模拟一个动态请求
+        fetch('/api/time')
+            .then(res => res.text())
+            .then(data => document.getElementById('time').innerText = data);
+        
+        // 模拟一个静态资源请求
+        console.log('加载了静态 JS 文件');
+    </script>
+</body>
+</html>
