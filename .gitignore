@@ -150,6 +150,7 @@ activemq-data/
 # SageMath parsed files
 *.sage.py
 *.tar
+*.pdf
 # Environments
 .env
 .envrc
@@ -219,3 +220,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+**/chroma_db
