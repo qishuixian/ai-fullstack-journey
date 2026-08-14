@@ -2,14 +2,15 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+# 关闭 LangChain 遥测警告
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage
 from FlagEmbedding import FlagReranker
 
 # ============ 1. 加载 PDF ============
@@ -21,16 +22,16 @@ print(f"   共加载 {len(docs)} 页")
 # ============ 2. 文本切片 ============
 print("✂️ 正在切片...")
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,
-    chunk_overlap=50,
-    separators=["\n\n", "\n", " ", ""]
+    chunk_size=800,
+    chunk_overlap=150,
+    separators=["\n\n", "\n", "。", " ", ""]
 )
 splits = text_splitter.split_documents(docs)
 print(f"   共切成 {len(splits)} 块")
 
-# ============ 3. 向量化（HuggingFace 本地模型）============
+# ============ 3. 向量化 ============
 print("🧠 正在生成向量并存入 ChromaDB...")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
 vectordb = Chroma.from_documents(
     documents=splits,
     embedding=embeddings,
@@ -38,21 +39,11 @@ vectordb = Chroma.from_documents(
 )
 print("✅ 向量数据库创建完成！")
 
-# ============ 初始化重排序模型 ============
+# ============ 4. 初始化重排序模型 ============
 print("🔄 初始化重排序模型（首次运行会下载模型）...")
-reranker = FlagReranker(
-    "BAAI/bge-reranker-v2-m3",
-    use_fp16=False  # CPU 设为 False，有 GPU 可设为 True
-)
+reranker = FlagReranker("BAAI/bge-reranker-v2-m3", use_fp16=False)
 
-def rerank_documents(query: str, docs: list, top_n: int = 3):
-    """对检索到的文档进行重排序"""
-    pairs = [(query, doc.page_content) for doc in docs]
-    scores = reranker.compute_score(pairs, normalize=True)
-    ranked = sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)
-    return [doc for _, doc in ranked[:top_n]]
-
-# ============ 4. 构建 RAG 问答链（使用 DeepSeek）============
+# ============ 5. 构建 LLM ============
 print("🤖 构建 RAG 问答链...")
 llm = ChatOpenAI(
     model="deepseek-chat",
@@ -61,48 +52,43 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "你是一个知识库助手，请根据上下文回答问题。如果上下文信息不足，请基于上下文进行合理推断；如果完全无关，再回答'未找到相关信息'。")
-    ("human", "上下文：{context}\n\n问题：{input}")
-])
-
-combine_docs_chain = create_stuff_documents_chain(llm, prompt)
-retrieval_chain = create_retrieval_chain(vectordb.as_retriever(), combine_docs_chain)
-
-# ============ 5. 交互式问答（流式 + Rerank）============
+# ============ 6. 交互式问答（极简直调版） ============
 print("\n💬 RAG 知识库已就绪！输入问题（输入 'quit' 退出）：")
+
 while True:
-    query = input("\n❓ 请输入问题: ")
+    query = input("\n❓ 请输入问题: ").strip()
     if query.lower() == 'quit':
         break
 
     print("🔍 正在检索相关文档...")
-    # 1. 先用 ChromaDB 粗筛（召回 Top 10）
+    
+    # 1. 粗筛
     candidate_docs = vectordb.similarity_search(query, k=10)
-    print(f"   召回 {len(candidate_docs)} 个候选片段")
-
-    print("🎯 正在重排序...")
-    # 2. 用 BGE 精排（取 Top 3）
-    top_docs = rerank_documents(query, candidate_docs, top_n=3)
-    print(f"   精排出 {len(top_docs)} 个最相关片段")
-
-    print("\n🤖 AI 回答：", end="", flush=True)
-    # 3. 将精排后的文档作为 context 注入（需要构造一个临时检索器）
-    # 这里采用最直接的方式：手动构造一个包含精排文档的列表，传给 chain
-    # 注意：create_retrieval_chain 的 stream 输出中 context 来自检索器，
-    # 但我们已手动筛选，所以直接使用 llm + prompt 生成即可
-    from langchain_core.runnables import RunnablePassthrough
-    from langchain_core.output_parsers import StrOutputParser
-
-    # 构建一个简单的 chain：prompt -> llm -> str_output
-    chain = (
-        {"context": lambda x: "\n\n".join([doc.page_content for doc in top_docs]),
-         "input": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-
-    for chunk in chain.stream(query):
-        print(chunk, end="", flush=True)
-    print()
+    
+    # 2. Rerank 精排
+    pairs = [(query, doc.page_content) for doc in candidate_docs]
+    scores = reranker.compute_score(pairs, normalize=True)
+    ranked = sorted(zip(scores, candidate_docs), key=lambda x: x[0], reverse=True)
+    
+    # print("🔍 [Debug] Rerank 分数:")
+    # for score, doc in ranked[:5]:
+    #     print(f"   分数: {score:.4f} | 内容: {doc.page_content[:50]}...")
+        
+    # 3. 提取精排文档
+    top_docs = [doc for score, doc in ranked[:3] if score >= 0.2]
+    if not top_docs:
+        # print("⚠️ 警告：Rerank 分数过低，启用兜底策略！")
+        top_docs = [candidate_docs[0]] if candidate_docs else []
+        
+    # 4. 手动拼接上下文
+    context_str = "\n\n".join([doc.page_content for doc in top_docs])
+    # print(f"📝 注入上下文长度: {len(context_str)} 字符")
+    
+    # 5. 直接构造消息并调用 LLM
+    messages = [
+        SystemMessage(content="你是一个知识库问答助手。请基于【上下文】回答【问题】。如果上下文中没有答案，回答'未找到相关信息'。"),
+        HumanMessage(content=f"【上下文】\n{context_str}\n\n【问题】\n{query}\n\n请回答：")
+    ]
+    
+    response = llm.invoke(messages)
+    print("\n🤖 AI 回答：", response.content)
