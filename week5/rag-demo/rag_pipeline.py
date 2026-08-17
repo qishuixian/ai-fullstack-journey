@@ -22,8 +22,8 @@ print(f"   共加载 {len(docs)} 页")
 # ============ 2. 文本切片 ============
 print("✂️ 正在切片...")
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1000,
-    chunk_overlap=200,
+    chunk_size=1200,  # 稍微再调大一点，保留更多上下文连贯性
+    chunk_overlap=300, # 增加重叠度，防止关键句子被切断
     separators=["\n\n", "\n", "。", "！", "？", " ", ""]
 )
 splits = text_splitter.split_documents(docs)
@@ -62,36 +62,34 @@ while True:
 
     print("🔍 正在检索相关文档...")
     
-    # 1. 粗筛
-    candidate_docs = vectordb.similarity_search(query, k=10)
+    # 1. 粗筛（增加召回数量）
+    candidate_docs = vectordb.similarity_search(query, k=20) # 从10增加到20
     
     # 2. Rerank 精排
     pairs = [(query, doc.page_content) for doc in candidate_docs]
     scores = reranker.compute_score(pairs, normalize=True)
     ranked = sorted(zip(scores, candidate_docs), key=lambda x: x[0], reverse=True)
     
-    print("🔍 [Debug] Rerank 分数:")
-    for score, doc in ranked[:5]:
-        # 打印更多内容方便排查
-        print(f"   分数: {score:.4f} | 内容: {doc.page_content[:100]}...") 
+    # print("🔍 [Debug] Rerank 分数:")
+    # for score, doc in ranked[:5]:
+    #     print(f"   分数: {score:.4f} | 内容: {doc.page_content[:100]}...") 
         
-    # 3. 提取精排文档（放宽阈值到 0.1）
-    top_docs = [doc for score, doc in ranked[:3] if score >= 0.1]
+    # 3. 提取精排文档（取前5个，增加上下文丰富度）
+    top_docs = [doc for score, doc in ranked[:5] if score >= 0.1]
     
     if not top_docs:
         print("⚠️ 警告：Rerank 分数过低，启用兜底策略！")
-        # 如果连0.1都没有，强行拿分数最高的1个给LLM看看
         top_docs = [ranked[0][1]] if ranked else []
         
     # 4. 手动拼接上下文
     context_str = "\n\n".join([doc.page_content for doc in top_docs])
-    print(f"📝 注入上下文长度: {len(context_str)} 字符")
+    # print(f"📝 注入上下文长度: {len(context_str)} 字符")
     if len(context_str) < 50:
         print("🚨 严重告警：注入上下文极短，检索阶段失败！请检查PDF内容和切片。")
     
     # 5. 直接构造消息并调用 LLM
     messages = [
-        SystemMessage(content="你是一个知识库问答助手。请严格基于【上下文】回答【问题】。即使上下文信息不完整，也请尝试提取相关信息回答。只有在上下文完全为空或与问题毫无关联时，才回答'未找到相关信息'。"),
+        SystemMessage(content="你是一个知识库问答助手。请严格基于【上下文】回答【问题】。直接给出最终答案，不要输出'上下文截断'、'根据上下文'等解释性前缀。如果确实没有，才回答'未找到相关信息'。"),
         HumanMessage(content=f"【上下文】\n{context_str}\n\n【问题】\n{query}\n\n请回答：")
     ]
     
