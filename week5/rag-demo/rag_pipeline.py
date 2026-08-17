@@ -22,16 +22,16 @@ print(f"   共加载 {len(docs)} 页")
 # ============ 2. 文本切片 ============
 print("✂️ 正在切片...")
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=800,
-    chunk_overlap=150,
-    separators=["\n\n", "\n", "。", " ", ""]
+    chunk_size=1000,
+    chunk_overlap=200,
+    separators=["\n\n", "\n", "。", "！", "？", " ", ""]
 )
 splits = text_splitter.split_documents(docs)
 print(f"   共切成 {len(splits)} 块")
 
-# ============ 3. 向量化 ============
+# ============ 3. 向量化（换用中文专用模型）============
 print("🧠 正在生成向量并存入 ChromaDB...")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
 vectordb = Chroma.from_documents(
     documents=splits,
     embedding=embeddings,
@@ -70,23 +70,28 @@ while True:
     scores = reranker.compute_score(pairs, normalize=True)
     ranked = sorted(zip(scores, candidate_docs), key=lambda x: x[0], reverse=True)
     
-    # print("🔍 [Debug] Rerank 分数:")
-    # for score, doc in ranked[:5]:
-    #     print(f"   分数: {score:.4f} | 内容: {doc.page_content[:50]}...")
+    print("🔍 [Debug] Rerank 分数:")
+    for score, doc in ranked[:5]:
+        # 打印更多内容方便排查
+        print(f"   分数: {score:.4f} | 内容: {doc.page_content[:100]}...") 
         
-    # 3. 提取精排文档
-    top_docs = [doc for score, doc in ranked[:3] if score >= 0.2]
+    # 3. 提取精排文档（放宽阈值到 0.1）
+    top_docs = [doc for score, doc in ranked[:3] if score >= 0.1]
+    
     if not top_docs:
-        # print("⚠️ 警告：Rerank 分数过低，启用兜底策略！")
-        top_docs = [candidate_docs[0]] if candidate_docs else []
+        print("⚠️ 警告：Rerank 分数过低，启用兜底策略！")
+        # 如果连0.1都没有，强行拿分数最高的1个给LLM看看
+        top_docs = [ranked[0][1]] if ranked else []
         
     # 4. 手动拼接上下文
     context_str = "\n\n".join([doc.page_content for doc in top_docs])
-    # print(f"📝 注入上下文长度: {len(context_str)} 字符")
+    print(f"📝 注入上下文长度: {len(context_str)} 字符")
+    if len(context_str) < 50:
+        print("🚨 严重告警：注入上下文极短，检索阶段失败！请检查PDF内容和切片。")
     
     # 5. 直接构造消息并调用 LLM
     messages = [
-        SystemMessage(content="你是一个知识库问答助手。请基于【上下文】回答【问题】。如果上下文中没有答案，回答'未找到相关信息'。"),
+        SystemMessage(content="你是一个知识库问答助手。请严格基于【上下文】回答【问题】。即使上下文信息不完整，也请尝试提取相关信息回答。只有在上下文完全为空或与问题毫无关联时，才回答'未找到相关信息'。"),
         HumanMessage(content=f"【上下文】\n{context_str}\n\n【问题】\n{query}\n\n请回答：")
     ]
     
