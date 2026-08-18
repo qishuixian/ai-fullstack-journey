@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////app/data/app.db
+    restart: always
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"       # 前端通过 8080 端口访问
+    depends_on:
+      - backend         # 确保后端先启动
+    restart: always
+
+volumes:
+  backend_data:
