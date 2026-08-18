@@ -398,7 +398,23 @@ VITE_BASE_URL=/ask/
 - **原因**：反向代理地址写成了容器名，或者端口写错
 - **建议**：宿主机 Nginx 使用 `127.0.0.1:8081` 和 `127.0.0.1:8001`，不要直接写 Docker 网络中的服务名
 
-### 6. 服务器上上传文件丢失
+### 6. 上传文件时出现 413 Request Entity Too Large
+
+- **原因**：Nginx 默认允许上传的请求体较小，PDF 上传会先在代理层被拦截，导致请求还没到 FastAPI 就返回 `413`
+- **当前处理**：已在前端容器 Nginx 配置 `frontend/frontend-ask.conf` 中增加：
+
+```nginx
+client_max_body_size 10M;
+```
+
+- **注意**：修改 Nginx 配置后需要重新构建并启动前端容器：
+
+```bash
+docker compose build frontend
+docker compose up -d
+```
+
+### 7. 服务器上上传文件丢失
 
 - **原因**：没有把宿主机目录挂载到 `/app/uploads`
 - **建议**：确认 `docker-compose.prod.yml` 中使用了：
