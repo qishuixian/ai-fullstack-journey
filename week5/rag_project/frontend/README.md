@@ -1,95 +1,65 @@
-# Week 3 前端项目文档
+# Week 5 RAG Frontend
 
-## 📋 项目概述
+`week5/rag_project/frontend` 是 Vue 3 + TypeScript + Element Plus 构建的前端，部署目标路径为：
 
-基于 Vue 3 + TypeScript + Element Plus 构建的现代化 AI 聊天应用前端，提供完整的用户体验和交互功能。
+```text
+https://qishuixian.com/ask
+```
 
-## 🛠️ 技术栈
+## 运行端口
 
-- **框架**: Vue 3.5.39 (Composition API + TypeScript)
-- **UI 库**: Element Plus 2.9.3
-- **状态管理**: Pinia 2.3.2
-- **代码高亮**: Highlight.js 11.11.1
-- **Markdown 渲染**: Marked 18.0.7 + marked-highlight 2.2.1
-- **拖拽排序**: Sortable.js 1.15.6
-- **构建工具**: Vite 8.1.1
+- 本地 Vite 开发端口：`5173`
+- Docker/Nginx 前端端口：`8081`
 
-## ✨ 核心功能
+## 主要能力
 
-### 1. 用户认证
-- ✅ 登录/注册表单（ElForm 组件）
-- ✅ 表单验证（用户名 3-20 字符，密码 6-50 字符）
-- ✅ JWT Token 存储和管理
+- 登录/注册
+- 文件管理列表
+- 上传 PDF
+- 全局上传 Loading
+- 删除文件
+- RAG 对话问答
 
-### 2. 会话管理
-- ✅ 创建/删除会话
-- ✅ 会话列表拖拽排序
-- ✅ 会话搜索/过滤
-- ✅ 会话置顶功能
-- ✅ 会话导出（JSON/Markdown/PDF）
-- ✅ 右键菜单操作
+## 本地开发
 
-### 3. 聊天功能
-- ✅ 实时流式输出（SSE）
-- ✅ Markdown 渲染
-- ✅ 代码块语法高亮
-- ✅ 代码复制按钮
-- ✅ 消息编辑/删除
-- ✅ 消息搜索
-- ✅ 停止生成功能
-
-### 4. 文件上传
-- ✅ 支持多种文件类型
-- ✅ 文件大小限制（10MB）
-- ✅ 上传进度提示
-
-### 5. 主题切换
-- ✅ 浅色/深色主题
-- ✅ Pinia Store 管理
-- ✅ localStorage 持久化
-
-## 🚀 快速开始
-
-\`\`\`bash
+```bash
+cd frontend
 npm install
 npm run dev
-\`\`\`
+```
 
-访问 `http://localhost:5173`
+默认访问：
 
-## 📦 核心依赖
+```text
+http://localhost:5173
+```
 
-- vue: ^3.5.39
-- element-plus: ^2.9.3
-- pinia: ^2.3.2
-- highlight.js: ^11.11.1
-- marked: ^18.0.7
-- sortablejs: ^1.15.6
+开发环境下通过 Vite 代理把 `/api` 转发到：
 
-## 📁 项目结构
+```text
+http://127.0.0.1:8001
+```
 
-\`\`\`
-frontend/
-├── src/
-│   ├── components/
-│   │   ├── LoginForm.vue
-│   │   ├── Sidebar.vue
-│   │   ├── ChatArea.vue
-│   │   ├── MessageList.vue
-│   │   └── ChatInput.vue
-│   ├── stores/
-│   │   └── theme.ts
-│   ├── styles/
-│   │   └── global.css
-│   └── main.ts
-└── package.json
-\`\`\`
+## 生产构建路径
 
-## 👤 开发者
+生产环境静态资源基路径通过 `frontend/.env.production` 固定为：
 
-- 作者：戚水仙
-- 时间：2026-07
+```env
+VITE_BASE_URL=/ask/
+```
 
-## 📄 许可证
+因此构建产物会以 `/ask/` 作为资源前缀，适配 `qishuixian.com/ask` 部署。
 
-MIT License
+## Docker
+
+`frontend/Dockerfile` 会：
+
+1. 构建 Vue 前端
+2. 将产物复制到容器内 `/usr/share/nginx/html/ask`
+3. 使用 `frontend-ask.conf` 提供 `/ask/` 路径访问
+
+容器对外端口为：
+
+```text
+8081
+```

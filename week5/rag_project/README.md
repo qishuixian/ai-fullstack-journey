@@ -1,296 +1,426 @@
-# Week 4 - AI 聊天应用进阶版（生产部署）
+# Week 5 - RAG 知识库问答项目（Docker + Nginx + 域名部署）
 
-基于 Week3 的 AI 聊天应用，完成全栈容器化、反向代理、域名绑定及生产环境部署。
+基于前几周的聊天应用继续演进，Week 5 的目标是把项目升级为一个支持用户登录、文件上传、向量检索、RAG 问答，并且可以通过 `qishuixian.com/ask` 对外访问的完整应用。
 
-## 📋 项目概述
+## 项目概览
 
-本周目标是将 Week3 开发的 AI 聊天应用**部署上线**，支持通过自定义域名公网访问。  
-核心任务包括：
-- 前端/后端 Docker 镜像构建与优化
-- 多服务编排（`docker-compose`）
-- Nginx 反向代理（路径路由 `/chat/`、`/api/`、`/ws`）
-- 服务器安全组与防火墙配置
-- 域名解析与 ICP 备案（中国大陆服务器必备）
+这一周的核心不再只是“聊天”，而是围绕“用户自己的知识库”构建一套完整流程：
 
-## 🛠️ 技术栈
+- 用户注册 / 登录
+- 上传 PDF 文件
+- 自动切分文档并写入 ChromaDB
+- 提问时默认检索当前用户上传的全部文件
+- 删除文件时同步删除对应向量数据
+- 通过 Docker、Docker Compose、Nginx 完成部署
+
+最终部署目标：
+
+- 访问地址：`https://qishuixian.com/ask`
+- 前端宿主机端口：`8081`
+- 后端宿主机端口：`8001`
+- 服务器上传文件目录：`ask`
+
+## 技术栈
 
 ### 前端
-- **框架**: Vue 3 + TypeScript
-- **UI 库**: Element Plus 2.9.3
-- **状态管理**: Pinia 2.3.2
-- **代码高亮**: Highlight.js 11.11.1
-- **Markdown**: Marked 18.0.7 + marked-highlight 2.2.1
-- **拖拽排序**: Sortable.js 1.15.6
-- **构建工具**: Vite 8.1.1
+
+- **框架**：Vue 3 + TypeScript
+- **UI 组件库**：Element Plus
+- **状态管理**：Pinia
+- **Markdown 渲染**：Marked + marked-highlight
+- **代码高亮**：Highlight.js
+- **构建工具**：Vite
 
 ### 后端
-- **框架**: FastAPI 0.139.2
-- **数据库**: SQLite + SQLAlchemy 2.0.51 + aiosqlite 0.22.1
-- **认证**: JWT (python-jose 3.5.0)
-- **AI 接口**: DeepSeek API (openai 2.48.0)
-- **文件处理**: aiofiles 25.1.0
+
+- **框架**：FastAPI
+- **认证**：JWT
+- **数据库**：SQLite + SQLAlchemy + aiosqlite
+- **文件处理**：aiofiles + PyPDFLoader
+- **向量数据库**：ChromaDB
+- **Embedding**：HuggingFace Embeddings（`BAAI/bge-small-zh-v1.5`）
+- **大模型**：DeepSeek
+- **RAG 组件**：LangChain
 
 ### 部署
-- **容器引擎**: Docker + Docker Compose
-- **反向代理**: Nginx（宿主机安装）
-- **云服务**: 腾讯云轻量应用服务器（Ubuntu 20.04）
-- **域名**: `qishuixian.com`（需 ICP 备案）
 
-## 📁 项目结构
+- **容器化**：Docker
+- **编排**：Docker Compose
+- **反向代理**：Nginx
+- **访问路径**：`/ask`
+- **目标域名**：`qishuixian.com`
 
+## 核心功能
+
+### 1. 用户认证
+
+- 支持注册与登录
+- 使用 JWT 作为访问令牌
+- 所有文件接口和问答接口都要求鉴权
+- 文件和聊天记录都按当前用户隔离
+
+### 2. 文件管理
+
+- 左侧从“会话列表”改成“文件管理列表”
+- 支持上传 PDF 文件
+- 支持查看当前用户上传的文件列表
+- 支持删除文件
+- 删除文件时同步从 ChromaDB 中移除对应向量
+
+### 3. RAG 问答
+
+- 用户提问时默认检索“当前用户的全部文件”
+- 检索结果会拼接成上下文发送给模型
+- 使用流式响应返回回答
+- 历史消息保存在数据库中
+
+### 4. 上传体验
+
+- 文件上传限制为 PDF
+- 文件大小限制为 10MB
+- 上传时有全局 Loading 遮罩
+- 上传完成后自动刷新文件列表
+
+### 5. 部署能力
+
+- 前后端分别构建 Docker 镜像
+- Compose 支持本地开发和服务器部署两种方式
+- 前端构建后以 `/ask/` 为静态资源基路径
+- 宿主机 Nginx 把 `/ask/` 转发到前端容器，把 `/api/` 转发到后端容器
+
+## 项目结构
+
+```text
+week5/rag_project/
+├─ backend/
+│  ├─ main.py                   # FastAPI 主应用，包含问答、文件管理、历史消息等接口
+│  ├─ auth.py                   # JWT 认证与密码哈希逻辑
+│  ├─ database.py               # 数据库模型与初始化
+│  ├─ dependencies.py           # 数据库依赖注入
+│  ├─ requirements.txt          # 后端依赖
+│  ├─ Dockerfile                # 后端镜像构建文件
+│  └─ README.md                 # 后端说明文档
+├─ frontend/
+│  ├─ src/
+│  │  ├─ App.vue
+│  │  ├─ components/
+│  │  │  ├─ LoginForm.vue       # 登录/注册组件
+│  │  │  ├─ Sidebar.vue         # 文件管理侧边栏
+│  │  │  ├─ ChatArea.vue        # RAG 问答主区域
+│  │  │  ├─ MessageList.vue     # 消息列表
+│  │  │  └─ ChatInput.vue       # 输入框组件
+│  │  ├─ stores/
+│  │  └─ styles/
+│  ├─ frontend-ask.conf         # 前端容器 Nginx 配置
+│  ├─ nginx.conf                # 前端开发/容器代理配置
+│  ├─ .env.production           # 生产构建基路径配置（/ask/）
+│  ├─ Dockerfile                # 前端镜像构建文件
+│  └─ README.md                 # 前端说明文档
+├─ Dockerfile.backend           # 根级后端镜像构建
+├─ Dockerfile.frontend          # 根级前端镜像构建
+├─ docker-compose.yml           # 本地开发编排
+├─ docker-compose.prod.yml      # 生产部署编排
+├─ nginx.conf                   # 根级 Nginx 代理配置
+└─ README.md                    # 本文档
 ```
-week4/
-├── backend/
-│   ├── main.py                    # FastAPI 主应用
-│   ├── auth.py                    # JWT 认证逻辑
-│   ├── database.py                # SQLAlchemy 数据库模型
-│   ├── dependencies.py            # 依赖注入
-│   ├── chat.py                    # 聊天基础接口
-│   ├── chat_stream.py             # 流式聊天接口
-│   ├── chat_managed.py            # 会话管理接口
-│   ├── migrate_add_pinned.py      # 数据库迁移脚本
-│   ├── Dockerfile                 # 后端镜像构建
-│   ├── requirements.txt           # Python 依赖
-│   ├── uploads/                   # 上传文件目录
-│   └── data/                      # SQLite 数据卷挂载点
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── LoginForm.vue      # 登录/注册组件
-│   │   │   ├── Sidebar.vue        # 侧边栏组件
-│   │   │   ├── ChatArea.vue       # 聊天主区域
-│   │   │   ├── MessageList.vue    # 消息列表
-│   │   │   └── ChatInput.vue      # 输入框组件
-│   │   ├── stores/
-│   │   │   └── theme.ts           # 主题状态管理
-│   │   ├── styles/
-│   │   │   └── global.css         # 全局样式
-│   │   ├── App.vue                # 根组件
-│   │   └── main.ts                # 入口文件
-│   ├── Dockerfile                 # 前端镜像构建（含 Nginx）
-│   ├── nginx.conf                 # 前端容器 Nginx 配置
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── README.md                  # 前端开发文档
-│
-├── Dockerfile.backend             # 根级后端镜像（含 backend/ 上下文）
-├── Dockerfile.frontend            # 根级前端镜像（多阶段构建）
-├── nginx.conf                     # 生产 Nginx 反向代理配置
-├── docker-compose.yml             # 开发环境（本地构建）
-├── docker-compose.prod.yml        # 生产环境（直接使用镜像）
-├── .env.example                   # 环境变量示例
-└── README.md                      # 本文件
-```
 
-## 🚀 快速开始（本地开发）
+## 本地开发
 
 ### 前置要求
-- Python 3.10+
-- Node.js 18+
-- npm 或 pnpm
-- Docker + Docker Compose（可选，用于容器化开发）
 
-### 后端设置
+- Python 3.11+
+- Node.js 18+
+- npm
+- Docker + Docker Compose（可选）
+
+### 后端启动
 
 ```bash
 cd backend
 
-# 创建虚拟环境
 python -m venv venv
-.\venv\Scripts\activate  # Windows
-# source venv/bin/activate  # macOS/Linux
 
-# 安装依赖
-pip install -r requirements.txt
+# Windows
+.\venv\Scripts\activate
 
-# 配置 .env 文件
-echo "DEEPSEEK_API_KEY=your_api_key_here" > .env
+# macOS / Linux
+# source venv/bin/activate
 
-# 运行后端
-uvicorn main:app --reload
-
+python -m pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8001
 ```
-后端服务：`http://127.0.0.1:8000`
 
-### 前端设置
+后端地址：
+
+```text
+http://localhost:8001
+```
+
+接口文档：
+
+```text
+http://localhost:8001/docs
+```
+
+### 前端启动
 
 ```bash
 cd frontend
-
-# 安装依赖
 npm install
-
-# 运行开发服务器
 npm run dev
 ```
 
-前端服务：`http://localhost:5173`
+前端地址：
 
-### Docker 本地开发
+```text
+http://localhost:5173
+```
+
+开发环境下，Vite 会把 `/api` 代理到：
+
+```text
+http://127.0.0.1:8001
+```
+
+## Docker 本地联调
+
+在项目根目录执行：
+
 ```bash
+cd week5/rag_project
 docker compose up --build -d
 ```
-访问地址：
-- 前端：http://localhost:8080
-- 后端：http://localhost:8000
 
-###  🚢 生产部署（服务器）
-## 部署架构
+启动后访问：
 
-```bash
-用户浏览器
-    ↓ (http://qishuixian.com/chat)
-宿主机 Nginx (监听 80 端口)
-    ↓
-Docker 容器网络
-    ├── frontend (chat-frontend:80)  → 静态文件 /usr/share/nginx/html/chat/
-    └── backend  (chat-backend:8000) → FastAPI 服务
+- 前端：`http://localhost:8081/ask`
+- 后端：`http://localhost:8001`
+
+### `docker-compose.yml` 说明
+
+本地联调使用如下约定：
+
+- 前端：`8081:80`
+- 后端：`8001:8001`
+- SQLite 数据目录：`./data:/app/data`
+- 上传文件目录：`./ask:/app/uploads`
+
+这样本地上传的 PDF 会直接落在项目目录下的 `ask/` 文件夹中。
+
+## 生产部署架构
+
+部署后的访问链路如下：
+
+```text
+浏览器
+  -> https://qishuixian.com/ask
+宿主机 Nginx
+  -> 前端容器 localhost:8081
+  -> 后端容器 localhost:8001
+Docker 容器
+  ├─ ask-frontend:80
+  └─ ask-backend:8001
 ```
-##  Step 1：本地构建镜像
+
+## 生产镜像构建
+
+### 方式 1：使用根目录 Dockerfile
+
 ```bash
-# 构建前端镜像（确保 .env.production 中 VITE_BASE_URL=/chat/）
-docker build -t chat-frontend:latest -f frontend/Dockerfile frontend/
-
-# 构建后端镜像
-docker build -t chat-backend:latest -f backend/Dockerfile backend/
-
-#或者构建所有
-docker compose -p chat up --build -d
-# 确认镜像
-docker images
+cd week5/rag_project
+docker build -t ask-backend:latest -f Dockerfile.backend .
+docker build -t ask-frontend:latest -f Dockerfile.frontend .
 ```
-## Step 2：导出并上传到服务器
-```bash
-# 打包镜像
-docker save chat-frontend:latest -o frontend.tar
-docker save chat-backend:latest  -o backend.tar
 
-# 上传镜像和配置文件
-scp frontend.tar backend.tar root@<SERVER_IP>:/opt/chat/
-scp docker-compose.prod.yml    root@<SERVER_IP>:/opt/chat/docker-compose.yml
+### 方式 2：使用子目录 Dockerfile
+
+```bash
+cd week5/rag_project
+docker build -t ask-backend:latest -f backend/Dockerfile backend/
+docker build -t ask-frontend:latest -f frontend/Dockerfile frontend/
 ```
-## Step 3：服务器加载并启动
- ```bash
- ssh root@<SERVER_IP>
-  cd /opt/chat
 
-  # 加载镜像
-  docker load -i backend.tar
-  docker load -i frontend.tar
+## 生产部署步骤
 
-  # 启动服务
-  docker compose up -d
-  # 重启服务
-  docker compose restart
-  # 查看日志
-  docker compose logs -f
-  # 验证
-  docker compose ps
-  # 停止并移除容器（数据卷保留）
-  docker compose down
-  # 停止并删除旧容器和旧镜像
-  docker compose down --rmi all
-  curl http://localhost:8080/chat/   # 应返回 HTML
- ```
-## Step 4：配置宿主机 Nginx 反向代理
-编辑/etc/nginx/sites-available/chat：
+### Step 1：导出镜像
+
 ```bash
+docker save ask-backend:latest -o ask-backend.tar
+docker save ask-frontend:latest -o ask-frontend.tar
+```
+
+### Step 2：上传到服务器
+
+```bash
+scp ask-backend.tar root@<SERVER_IP>:/opt/ask/
+scp ask-frontend.tar root@<SERVER_IP>:/opt/ask/
+scp docker-compose.prod.yml root@<SERVER_IP>:/opt/ask/docker-compose.yml
+```
+
+### Step 3：服务器加载并启动
+
+```bash
+ssh root@<SERVER_IP>
+cd /opt/ask
+
+docker load -i ask-backend.tar
+docker load -i ask-frontend.tar
+
+docker compose up -d
+docker compose ps
+docker compose logs -f
+```
+
+建议服务器目录结构：
+
+```text
+/opt/ask/
+├─ docker-compose.yml
+├─ data/
+└─ ask/
+```
+
+其中：
+
+- `data/` 保存 SQLite 数据
+- `ask/` 保存用户上传的 PDF 文件
+
+### `docker-compose.prod.yml` 说明
+
+生产环境使用如下约定：
+
+- 后端镜像：`ask-backend:latest`
+- 前端镜像：`ask-frontend:latest`
+- 前端端口：`8081`
+- 后端端口：`8001`
+- 上传目录：`./ask:/app/uploads`
+
+## Nginx 配置说明
+
+### 1. 前端容器内 Nginx
+
+前端构建产物被复制到：
+
+```text
+/usr/share/nginx/html/ask
+```
+
+前端容器通过 `frontend/frontend-ask.conf` 提供：
+
+- `/ask/` 静态页面访问
+- `/api/` 转发到 `backend:8001`
+
+### 2. 宿主机 Nginx 反向代理示例
+
+可以在服务器上配置：
+
+```nginx
 server {
     listen 80;
     server_name qishuixian.com www.qishuixian.com;
+    client_max_body_size 10M;
 
-    # ========== 1. 前端页面：指向 chat-frontend (宿主机8080端口) ==========
-    location /chat/ {
-        proxy_pass http://localhost:8080/;  # 宿主机端口映射
+    location /ask/ {
+        proxy_pass http://127.0.0.1:8081/ask/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        try_files $uri $uri/ /chat/index.html;  # 处理前端路由History模式
     }
 
-    # ========== 2. 后端 API：指向 chat-backend (宿主机8000端口) ==========
     location /api/ {
-        proxy_pass http://localhost:8000/api/;
+        proxy_pass http://127.0.0.1:8001/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # ========== 3. WebSocket ==========
-    location /ws {
-        proxy_pass http://localhost:8000/ws;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
-    }
-
-    # ========== 4. 静态文件 ==========
-    location /uploads/ {
-        proxy_pass http://localhost:8000/uploads/;
-        proxy_set_header Host $host;
     }
 }
 ```
- 启用站点并重启 Nginx：
- ```bash
-sudo nginx -t       # 测试配置语法
-sudo systemctl reload nginx  # 重载配置
+
+这样浏览器访问：
+
+```text
+https://qishuixian.com/ask
 ```
 
-### Step 5：域名解析与安全组
+即可进入前端页面，而前端内部请求 `/api/*` 时会由 Nginx 转发到 FastAPI。
 
-1. **DNS 解析**：在域名注册商（如腾讯云 DNSPod）添加 A 记录：
-   - 主机记录：`@` → 服务器公网 IP
-   - 主机记录：`www` → 服务器公网 IP
-2. **安全组**：在云控制台放行 **TCP 80** 端口（来源 `0.0.0.0/0`）
-3. **服务器防火墙**（如有）：`sudo ufw allow 80/tcp`
+## 环境变量说明
 
-### Step 6：ICP 备案（中国大陆服务器必须）
+### 后端 `.env`
 
-- 备案周期：约 10~20 个工作日
-- 备案期间域名无法访问，建议暂停 DNS 解析
-- 备案通过后恢复解析即可正常访问
+至少需要：
 
-## 🧩 常见问题与踩坑记录
+```env
+DEEPSEEK_API_KEY=your_deepseek_api_key
+SECRET_KEY=change-this-secret-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+```
 
-### 1. `rolldown` 原生模块缺失（`Cannot find module '@rolldown/binding-linux-x64-musl'`）
-- **原因**：Alpine Linux 镜像缺少 musl 预编译绑定。
-- **解决**：将基础镜像从 `node:20-alpine` 改为 `node:20-slim`（使用 glibc）。
+### 前端 `.env.production`
 
-### 2. 前端容器返回 500 Internal Server Error
-- **原因**：容器内部 Nginx 配置未适配 `/chat/` 子路径。
-- **解决**：修改容器内 Nginx 配置，设置 `root /usr/share/nginx/html/chat;` 并添加 `try_files` 处理 SPA 路由。
+```env
+VITE_BASE_URL=/ask/
+```
 
-### 3. Nginx 报错 `host not found in upstream "frontend"`
-- **原因**：宿主机 Nginx 无法解析 Docker 容器名（`frontend`）。
-- **解决**：使用宿主机端口映射（`localhost:8080`）而非容器名。
+这个配置用于保证打包后的静态资源、路由路径都以 `/ask/` 为前缀。
 
-### 4. 构建时镜像被镜像加速器白名单拦截
-- **原因**：服务器配置了公共镜像加速器，但本地镜像未加载成功。
-- **解决**：确保 `docker load` 成功，并使用 `docker compose build --no-cache --pull never` 强制使用本地镜像。
+## 常见问题与排查
 
-### 5. 浏览器访问超时
-- **原因**：云服务器安全组未放行 80 端口，或 Ubuntu UFW 防火墙未开启。
-- **解决**：在腾讯云安全组添加入方向 TCP:80，并检查 `sudo ufw status`。
+### 1. 注册接口返回 500
 
-## 💡 学习要点
+- **原因**：密码哈希方案或依赖不兼容
+- **当前处理**：项目已改为 `pbkdf2_sha256`，不再依赖 `bcrypt`
+- **建议**：重新执行 `pip install -r requirements.txt`
 
-1. **Docker 多阶段构建**：减少最终镜像体积，分离构建环境和运行环境。
-2. **Nginx 反向代理**：路径路由（`location /chat/`）、WebSocket 升级、`try_files` 处理 SPA 路由。
-3. **Docker 网络**：自定义 bridge 网络实现容器间通信，端口映射与 `expose` 的区别。
-4. **环境变量驱动**：通过 `.env.production` 控制 Vite 的 `base` 路径，实现开发/生产差异化。
-5. **生产部署流程**：本地构建 → 导出 tar → 服务器加载 → 编排启动。
-6. **云服务器网络**：安全组规则、UFW 防火墙、域名解析与 ICP 备案。
-7. **错误排查方法论**：从日志入手，逐步缩小范围（容器日志 → Nginx 日志 → 网络连通性）。
+### 2. 上传 PDF 很久没有响应
 
-## 📜 许可证
+- **原因**：后端需要完成 PDF 解析、文本切分、Embedding 计算、向量入库
+- **当前处理**：前端已增加全局 Loading
+- **建议**：首次运行时，Embedding 模型下载可能更慢
+
+### 3. 访问 `/ask` 出现静态资源 404
+
+- **原因**：前端打包基路径不是 `/ask/`
+- **检查项**：
+  - `frontend/.env.production` 是否为 `VITE_BASE_URL=/ask/`
+  - Dockerfile 是否把构建产物复制到了 `/usr/share/nginx/html/ask`
+  - Nginx 是否使用 `/ask/` 路由
+
+### 4. 文件删除后问答还能检索到旧内容
+
+- **原因**：删除时没有同步清理向量库
+- **当前实现**：后端会按 `user_id + file_id` 删除 ChromaDB 元数据对应的向量
+- **建议**：如果容器里缓存了旧数据，检查是否挂载了正确的数据目录
+
+### 5. 宿主机 Nginx 无法访问容器服务
+
+- **原因**：反向代理地址写成了容器名，或者端口写错
+- **建议**：宿主机 Nginx 使用 `127.0.0.1:8081` 和 `127.0.0.1:8001`，不要直接写 Docker 网络中的服务名
+
+### 6. 服务器上上传文件丢失
+
+- **原因**：没有把宿主机目录挂载到 `/app/uploads`
+- **建议**：确认 `docker-compose.prod.yml` 中使用了：
+
+```yaml
+- ./ask:/app/uploads
+```
+
+## 学习要点
+
+1. **用户级 RAG 设计**：文件、向量、聊天记录都要绑定用户身份，避免数据串用。
+2. **删除一致性**：业务库删文件不够，还要同步删向量库中的对应分片。
+3. **子路径部署**：当前端挂在 `/ask/` 下时，Vite `base`、容器 Nginx、宿主机 Nginx 都要统一。
+4. **Docker 卷挂载**：上传目录和 SQLite 数据目录都应该持久化，否则容器重启会丢数据。
+5. **部署链路排查**：优先按“浏览器 -> 宿主机 Nginx -> Docker 端口 -> 容器日志”的顺序定位问题。
+
+## 许可证
 
 MIT License
 
-## 👤 作者
+## 作者
 
 - 开发者：戚水仙
 - 时间：2026-08
-- 项目：AI 全栈学习之旅 - Week 4
+- 项目：AI 全栈学习之旅 - Week 5

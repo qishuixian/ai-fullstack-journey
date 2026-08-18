@@ -1,12 +1,12 @@
 services:
   backend:
-    image: chat-backend:latest
-    container_name: chat-backend
+    image: ask-backend:latest
+    container_name: ask-backend
     ports:
-      - "8000:8000"
+      - "8001:8001"
     volumes:
       - ./data:/app/data
-      - ./uploads:/app/uploads
+      - ./ask:/app/uploads
     environment:
       - DATABASE_URL=sqlite+aiosqlite:////app/data/app.db
     restart: always
@@ -14,10 +14,10 @@ services:
       - mynet
 
   frontend:
-    image: chat-frontend:latest
-    container_name: chat-frontend
+    image: ask-frontend:latest
+    container_name: ask-frontend
     ports:
-      - "8080:80"
+      - "8081:80"
     depends_on:
       - backend
     restart: always
