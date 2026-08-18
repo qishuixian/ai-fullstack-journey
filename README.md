@@ -18,8 +18,12 @@
 
 ### Month 2 · RAG 知识库
 
-- [ ] LangChain + ChromaDB 向量检索
-- [ ] 文档解析与嵌入
+- [x] LangChain + ChromaDB 向量检索
+- [x] 文档解析与嵌入
+- [x] 用户登录注册与 JWT 认证
+- [x] PDF 文件上传、列表查看与删除
+- [x] 删除文件后同步移除 ChromaDB 向量
+- [x] Docker / Nginx / `/ask` 路径部署配置
 
 ### Month 3 · Agent 智能体
 
