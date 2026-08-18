@@ -3,9 +3,9 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
-# 复制依赖文件并安装（使用国内镜像加速，可选）
+# 复制依赖文件并安装，默认走清华源，减少 torch 等大包下载卡顿。
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 # ============ 第二阶段：运行阶段 ============
 FROM python:3.11-slim
