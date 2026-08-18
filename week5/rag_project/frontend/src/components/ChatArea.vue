@@ -1,31 +1,31 @@
 <template>
   <div class="chat-main">
     <header class="chat-header">
-      <h1>🤖 AI 助手</h1>
+      <h1>RAG 问答助手</h1>
       <div class="header-actions">
         <el-button
           :icon="Search"
           circle
-          @click="toggleSearch"
           title="搜索消息"
+          @click="toggleSearch"
         />
         <el-button
           :icon="theme === 'dark' ? Sunny : Moon"
           circle
-          @click="toggleTheme"
           title="切换主题"
+          @click="toggleTheme"
         />
       </div>
     </header>
 
     <MessageList
+      ref="messageListRef"
       :messages="messages"
       :is-loading="isLoading"
       :loading-text="loadingText"
       :show-search="showSearch"
-      ref="messageListRef"
-      @message-updated="handleMessageUpdate"
-      @message-deleted="handleMessageUpdate"
+      @message-updated="loadHistory"
+      @message-deleted="loadHistory"
     />
 
     <ChatInput
@@ -33,29 +33,21 @@
       :is-loading="isLoading"
       @send="handleSend"
       @stop="stopGeneration"
-      @file-upload="handleFileUpload"
     />
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { marked } from 'marked'
 import { markedHighlight } from 'marked-highlight'
 import hljs from 'highlight.js'
-import { Sunny, Moon, Search } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Moon, Search, Sunny } from '@element-plus/icons-vue'
 import { useThemeStore } from '../stores/theme'
-import MessageList from './MessageList.vue'
 import ChatInput from './ChatInput.vue'
+import MessageList from './MessageList.vue'
 
-// 主题管理
-const themeStore = useThemeStore()
-const { theme } = storeToRefs(themeStore)
-const { toggleTheme } = themeStore
-
-// 配置 marked 使用 highlight.js
 marked.use(markedHighlight({
   langPrefix: 'hljs language-',
   highlight(code, lang) {
@@ -68,20 +60,18 @@ const props = defineProps({
   token: {
     type: String,
     required: true
-  },
-  currentSessionId: {
-    type: String,
-    default: ''
   }
 })
 
-const emit = defineEmits(['sessions-updated'])
+const themeStore = useThemeStore()
+const { theme } = storeToRefs(themeStore)
+const { toggleTheme } = themeStore
 
 const messages = ref([])
 const userInput = ref('')
 const isLoading = ref(false)
+const loadingText = ref('检索并生成中...')
 const controller = ref(null)
-const loadingText = ref('思考中...')
 const messageListRef = ref(null)
 const showSearch = ref(false)
 
@@ -89,70 +79,15 @@ function toggleSearch() {
   showSearch.value = !showSearch.value
 }
 
-async function handleFileUpload(file) {
-  const formData = new FormData()
-  formData.append('file', file)
-
-  try {
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${props.token}`
-      },
-      body: formData
-    })
-
-    if (res.ok) {
-      const data = await res.json()
-      ElMessage.success(`文件上传成功: ${data.filename}`)
-      // 可以在这里将文件信息添加到消息中
-      const fileMsg = `📎 已上传文件: ${data.filename} (${(data.size / 1024).toFixed(2)} KB)`
-      messages.value.push({
-        role: 'user',
-        content: fileMsg,
-        time: nowTime()
-      })
-    } else {
-      const error = await res.json()
-      throw new Error(error.detail || '上传失败')
-    }
-  } catch (error) {
-    ElMessage.error(error.message || '文件上传失败')
-  }
-}
-
-async function handleMessageUpdate() {
-  // 重新加载当前会话的历史记录
-  if (props.currentSessionId) {
-    await loadHistory(props.currentSessionId)
-  }
-}
-
 function nowTime() {
-  const d = new Date()
-  const year = d.getFullYear()
-  const month = (d.getMonth() + 1).toString().padStart(2, '0')
-  const day = d.getDate().toString().padStart(2, '0')
-  const hour = d.getHours().toString().padStart(2, '0')
-  const minute = d.getMinutes().toString().padStart(2, '0')
-  return `${year}-${month}-${day} ${hour}:${minute}`
+  return new Date().toISOString().slice(0, 16).replace('T', ' ')
 }
 
 async function handleSend(text) {
   if (!text || isLoading.value) return
 
-  // 如果当前没有会话ID，不允许发送
-  if (!props.currentSessionId) {
-    console.warn('没有选中会话，无法发送消息')
-    return
-  }
-
-  const isFirstMessage = messages.value.length === 0
-
   messages.value.push({ role: 'user', content: text, time: nowTime() })
   isLoading.value = true
-  loadingText.value = '思考中...'
-
   await nextTick()
 
   if (controller.value) {
@@ -168,18 +103,20 @@ async function handleSend(text) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${props.token}`
+        Authorization: `Bearer ${props.token}`
       },
       body: JSON.stringify({
         message: text,
         history: [],
-        session_id: props.currentSessionId || 'default'
+        // week5 当前不再做多会话切换，统一把聊天历史挂在默认会话下。
+        session_id: 'default'
       }),
       signal: controller.value.signal
     })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
+    if (!response.ok || !response.body) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.detail || `请求失败: ${response.status}`)
     }
 
     const reader = response.body.getReader()
@@ -195,95 +132,75 @@ async function handleSend(text) {
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6)
-          if (dataStr === '[DONE]') break
-          try {
-            const parsed = JSON.parse(dataStr)
-            if (parsed.content) {
-              fullReply += parsed.content
-              const html = marked.parse(fullReply)
+        if (!line.startsWith('data: ')) continue
+        const dataStr = line.slice(6)
+        if (dataStr === '[DONE]') continue
 
-              // 第一次收到内容时，创建 AI 消息
-              if (aiMsgIndex === -1) {
-                messages.value.push({ role: 'assistant', content: html, time: nowTime() })
-                aiMsgIndex = messages.value.length - 1
-              } else {
-                messages.value[aiMsgIndex].content = html
-              }
-            }
-          } catch (e) {
-            console.warn('Parse error:', e)
-          }
+        const parsed = JSON.parse(dataStr)
+        if (!parsed.content) continue
+
+        fullReply += parsed.content
+        // assistant 响应按 markdown 实时渲染，代码块等格式能边生成边展示。
+        const html = marked.parse(fullReply)
+
+        if (aiMsgIndex === -1) {
+          messages.value.push({ role: 'assistant', content: html, time: nowTime() })
+          aiMsgIndex = messages.value.length - 1
+        } else {
+          messages.value[aiMsgIndex].content = html
         }
       }
     }
 
-    // 如果没有收到任何内容，添加一个空消息
     if (aiMsgIndex === -1) {
       messages.value.push({ role: 'assistant', content: '未收到回复', time: nowTime() })
     }
-
-    // 如果是第一条消息，用消息内容更新会话名称
-    if (isFirstMessage && props.currentSessionId) {
-      const sessionName = text.length > 20 ? text.substring(0, 20) + '...' : text
-      await fetch(`/api/sessions/${props.currentSessionId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${props.token}`
-        },
-        body: JSON.stringify({ name: sessionName })
-      })
-    }
   } catch (error) {
     if (error.name === 'AbortError') {
-      console.log('请求已被用户手动中断')
       if (aiMsgIndex !== -1) {
-        messages.value[aiMsgIndex].content = '已停止'
+        messages.value[aiMsgIndex].content = '已停止生成'
       }
       return
     }
-    console.error('请求失败:', error)
-    if (aiMsgIndex === -1) {
-      messages.value.push({ role: 'assistant', content: '❌ 请求失败', time: nowTime() })
-    } else {
-      messages.value[aiMsgIndex].content = '❌ 请求失败'
-    }
+
+    messages.value.push({
+      role: 'assistant',
+      content: error instanceof Error ? error.message : '请求失败',
+      time: nowTime()
+    })
   } finally {
     isLoading.value = false
-    await nextTick()
-    emit('sessions-updated')
+    await loadHistory()
   }
 }
 
 function stopGeneration() {
-  if (controller.value) {
-    controller.value.abort()
-  }
+  controller.value?.abort()
   isLoading.value = false
 }
 
-async function loadHistory(sessionId) {
-  if (!sessionId) return
+async function loadHistory() {
   try {
-    const res = await fetch(`/api/history?session_id=${sessionId}`, {
-      headers: { 'Authorization': `Bearer ${props.token}` }
-    })
-    if (res.ok) {
-      const data = await res.json()
-      messages.value = data.map((m) => ({
-        role: m.role,
-        content: m.content,
-        time: m.time ? m.time.slice(0, 16).replace('T', ' ') : ''
-      }))
-      await nextTick()
-      if (messageListRef.value) {
-        messageListRef.value.scrollToBottom()
+    const res = await fetch('/api/history?session_id=default', {
+      headers: {
+        Authorization: `Bearer ${props.token}`
       }
-    }
-  } catch (e) {
-    console.warn('加载历史记录失败:', e)
+    })
+    if (!res.ok) return
+
+    const data = await res.json()
+    messages.value = data.map((item) => ({
+      id: item.id,
+      role: item.role,
+      // 数据库存的是原始文本，重新加载历史时要再转一次 markdown HTML。
+      content: item.role === 'assistant' ? marked.parse(item.content) : item.content,
+      time: item.time ? item.time.slice(0, 16).replace('T', ' ') : ''
+    }))
+
+    await nextTick()
+    messageListRef.value?.scrollToBottom()
+  } catch (error) {
+    console.warn('加载历史失败:', error)
   }
 }
 
@@ -294,6 +211,10 @@ function clearMessages() {
 defineExpose({
   loadHistory,
   clearMessages
+})
+
+onMounted(() => {
+  loadHistory()
 })
 </script>
 
