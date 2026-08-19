@@ -373,13 +373,29 @@ VITE_BASE_URL=/ask/
 - **当前处理**：项目已改为 `pbkdf2_sha256`，不再依赖 `bcrypt`
 - **建议**：重新执行 `pip install -r requirements.txt`
 
-### 2. 上传 PDF 很久没有响应
+### 2. 上传 PDF 时提示 `pypdf package not found`
+
+- **原因**：`PyPDFLoader` 运行时依赖的是 `pypdf`，仅安装 `PyPDF2` 不足以完成当前版本的 PDF 解析
+- **当前处理**：已在 `backend/requirements.txt` 中补充：
+
+```text
+pypdf==5.0.0
+```
+
+- **建议**：修改依赖后重新构建后端镜像：
+
+```bash
+docker compose build backend
+docker compose up -d
+```
+
+### 3. 上传 PDF 很久没有响应
 
 - **原因**：后端需要完成 PDF 解析、文本切分、Embedding 计算、向量入库
 - **当前处理**：前端已增加全局 Loading
 - **建议**：首次运行时，Embedding 模型下载可能更慢
 
-### 3. 访问 `/ask` 出现静态资源 404
+### 4. 访问 `/ask` 出现静态资源 404
 
 - **原因**：前端打包基路径不是 `/ask/`
 - **检查项**：
@@ -387,18 +403,18 @@ VITE_BASE_URL=/ask/
   - Dockerfile 是否把构建产物复制到了 `/usr/share/nginx/html/ask`
   - Nginx 是否使用 `/ask/` 路由
 
-### 4. 文件删除后问答还能检索到旧内容
+### 5. 文件删除后问答还能检索到旧内容
 
 - **原因**：删除时没有同步清理向量库
 - **当前实现**：后端会按 `user_id + file_id` 删除 ChromaDB 元数据对应的向量
 - **建议**：如果容器里缓存了旧数据，检查是否挂载了正确的数据目录
 
-### 5. 宿主机 Nginx 无法访问容器服务
+### 6. 宿主机 Nginx 无法访问容器服务
 
 - **原因**：反向代理地址写成了容器名，或者端口写错
 - **建议**：宿主机 Nginx 使用 `127.0.0.1:8081` 和 `127.0.0.1:8001`，不要直接写 Docker 网络中的服务名
 
-### 6. 上传文件时出现 413 Request Entity Too Large
+### 7. 上传文件时出现 413 Request Entity Too Large
 
 - **原因**：Nginx 默认允许上传的请求体较小，PDF 上传会先在代理层被拦截，导致请求还没到 FastAPI 就返回 `413`
 - **当前处理**：已在前端容器 Nginx 配置 `frontend/frontend-ask.conf` 中增加：
@@ -414,7 +430,23 @@ docker compose build frontend
 docker compose up -d
 ```
 
-### 7. 服务器上上传文件丢失
+### 8. `docker compose up -d` 后前端接口全部 502
+
+- **现象**：前端页面能打开，但 `/api/files`、`/api/history`、`/api/token` 等接口全部返回 `502 Bad Gateway`
+- **原因**：前端容器已经启动，但后端容器此时可能仍在加载依赖或模型，Nginx 代理到 `backend:8001` 时会出现短暂连接失败
+- **排查方式**：
+
+```bash
+docker compose ps
+docker compose logs --tail=200 frontend
+docker compose logs --tail=200 backend
+```
+
+- **当前处理**：已在 `docker-compose.yml` 和 `docker-compose.prod.yml` 中为 backend 增加健康检查，并让 frontend 依赖 `service_healthy` 后再启动
+- **补充说明**：如果后端首次启动需要加载模型或初始化向量库，健康检查缓冲时间需要足够长；当前配置已将 `start_period` 调整为 `60s`
+- **建议**：首次启动完成后刷新一次页面；如果仍有异常，再检查 backend 日志是否还在加载模型或是否启动失败
+
+### 9. 服务器上上传文件丢失
 
 - **原因**：没有把宿主机目录挂载到 `/app/uploads`
 - **建议**：确认 `docker-compose.prod.yml` 中使用了：

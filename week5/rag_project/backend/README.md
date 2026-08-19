@@ -15,6 +15,15 @@
 - 删除文件时同步删除对应向量
 - 提问时默认检索当前用户全部文件
 
+## PDF 解析依赖
+
+项目使用 `langchain_community.document_loaders.PyPDFLoader` 解析 PDF。
+该加载器在当前版本下实际依赖 `pypdf`，因此 `requirements.txt` 中需要包含：
+
+```text
+pypdf==5.0.0
+```
+
 ## 本地开发
 
 ```bash
