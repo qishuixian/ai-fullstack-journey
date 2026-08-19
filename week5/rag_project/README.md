@@ -193,7 +193,7 @@ docker compose up --build -d
 
 启动后访问：
 
-- 前端：`http://localhost:8081/ask`
+- 前端：`http://localhost:8081/ask/`
 - 后端：`http://localhost:8001`
 
 ### `docker-compose.yml` 说明
