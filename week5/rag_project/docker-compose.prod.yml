@@ -7,8 +7,12 @@ services:
     volumes:
       - ./data:/app/data
       - ./ask:/app/uploads
+      - ./hf-cache:/root/.cache/huggingface
     environment:
       - DATABASE_URL=sqlite+aiosqlite:////app/data/app.db
+      - HF_HOME=/root/.cache/huggingface
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/')"]
       interval: 10s

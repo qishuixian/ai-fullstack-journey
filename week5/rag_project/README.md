@@ -249,7 +249,53 @@ docker save ask-backend:latest -o ask-backend.tar
 docker save ask-frontend:latest -o ask-frontend.tar
 ```
 
-### Step 2：上传到服务器
+### Step 2：如果服务器不能访问 Hugging Face，先在本地准备模型缓存
+
+`backend/main.py` 会在启动时初始化：
+
+```python
+HuggingFaceEmbeddings(model_name="BAAI/bge-small-zh-v1.5")
+```
+
+如果服务器无法访问 `https://huggingface.co`，需要先在本地把模型下载到 `hf-cache/`，再上传到服务器。
+
+在 Windows Git Bash 中，建议直接使用 Windows 绝对路径挂载，避免 `$(pwd)` 挂载后模型实际只下载到临时容器、宿主机 `hf-cache/` 仍为空。
+
+可以直接在本地执行：
+
+```bash
+mkdir -p hf-cache
+docker run --rm -it -v "E:/my/ai-fullstack-journey/week5/rag_project/hf-cache:/root/.cache/huggingface" python:3.13-slim bash
+```
+
+进入临时容器后执行：
+
+```bash
+pip install sentence-transformers huggingface_hub
+python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5')"
+exit
+```
+
+执行完成后，当前目录会得到：
+
+```text
+hf-cache/
+```
+
+可以用下面两条命令确认缓存是否真的下载到了宿主机目录：
+
+```bash
+find hf-cache -maxdepth 4 -type d | grep BAAI
+du -sh hf-cache
+```
+
+如果下载成功，通常会看到类似：
+
+```text
+hf-cache/hub/models--BAAI--bge-small-zh-v1.5
+```
+
+### Step 3：上传到服务器
 
 ```bash
 scp ask-backend.tar root@<SERVER_IP>:/opt/ask/
@@ -257,7 +303,14 @@ scp ask-frontend.tar root@<SERVER_IP>:/opt/ask/
 scp docker-compose.prod.yml root@<SERVER_IP>:/opt/ask/docker-compose.yml
 ```
 
-### Step 3：服务器加载并启动
+如果服务器无法访问 `https://huggingface.co`，还需要额外上传本地预下载的 Hugging Face 缓存目录：
+
+```bash
+tar -czf hf-cache.tar.gz hf-cache
+scp hf-cache.tar.gz root@159.75.128.138:/opt/ask/
+```
+
+### Step 4：服务器加载并启动
 
 ```bash
 ssh root@<SERVER_IP>
@@ -265,7 +318,9 @@ cd /opt/ask
 
 docker load -i ask-backend.tar
 docker load -i ask-frontend.tar
+tar -xzf hf-cache.tar.gz
 
+docker compose down
 docker compose up -d
 docker compose ps
 docker compose logs -f
@@ -277,13 +332,15 @@ docker compose logs -f
 /opt/ask/
 ├─ docker-compose.yml
 ├─ data/
-└─ ask/
+├─ ask/
+└─ hf-cache/
 ```
 
 其中：
 
 - `data/` 保存 SQLite 数据
 - `ask/` 保存用户上传的 PDF 文件
+- `hf-cache/` 保存本地预下载的 Hugging Face 模型缓存，供服务器离线启动使用
 
 ### `docker-compose.prod.yml` 说明
 
@@ -294,6 +351,8 @@ docker compose logs -f
 - 前端端口：`8081`
 - 后端端口：`8001`
 - 上传目录：`./ask:/app/uploads`
+- Hugging Face 缓存目录：`./hf-cache:/root/.cache/huggingface`
+- 离线模式：`HF_HUB_OFFLINE=1`、`TRANSFORMERS_OFFLINE=1`
 
 ## Nginx 配置说明
 
@@ -403,18 +462,38 @@ docker compose up -d
   - Dockerfile 是否把构建产物复制到了 `/usr/share/nginx/html/ask`
   - Nginx 是否使用 `/ask/` 路由
 
-### 5. 文件删除后问答还能检索到旧内容
+### 5. 服务器启动后 backend 一直 unhealthy
+
+- **典型日志**：`[Errno 101] Network is unreachable`、`Failed to connect to huggingface.co port 443`
+- **原因**：后端启动时会初始化 `BAAI/bge-small-zh-v1.5`，如果服务器无法访问 Hugging Face，容器就无法完成启动
+- **当前处理**：生产编排已支持挂载 `./hf-cache:/root/.cache/huggingface`，并通过 `HF_HUB_OFFLINE=1`、`TRANSFORMERS_OFFLINE=1` 强制离线读取缓存
+- **建议**：
+
+```bash
+# 本地先准备缓存目录后再上传
+tar -czf hf-cache.tar.gz hf-cache
+scp hf-cache.tar.gz root@<SERVER_IP>:/opt/ask/
+
+# 服务器上解压后再启动
+ssh root@<SERVER_IP>
+cd /opt/ask
+tar -xzf hf-cache.tar.gz
+docker compose up -d
+docker compose logs --tail=200 backend
+```
+
+### 6. 文件删除后问答还能检索到旧内容
 
 - **原因**：删除时没有同步清理向量库
 - **当前实现**：后端会按 `user_id + file_id` 删除 ChromaDB 元数据对应的向量
 - **建议**：如果容器里缓存了旧数据，检查是否挂载了正确的数据目录
 
-### 6. 宿主机 Nginx 无法访问容器服务
+### 7. 宿主机 Nginx 无法访问容器服务
 
 - **原因**：反向代理地址写成了容器名，或者端口写错
 - **建议**：宿主机 Nginx 使用 `127.0.0.1:8081` 和 `127.0.0.1:8001`，不要直接写 Docker 网络中的服务名
 
-### 7. 上传文件时出现 413 Request Entity Too Large
+### 8. 上传文件时出现 413 Request Entity Too Large
 
 - **原因**：Nginx 默认允许上传的请求体较小，PDF 上传会先在代理层被拦截，导致请求还没到 FastAPI 就返回 `413`
 - **当前处理**：已在前端容器 Nginx 配置 `frontend/frontend-ask.conf` 中增加：
@@ -430,7 +509,7 @@ docker compose build frontend
 docker compose up -d
 ```
 
-### 8. `docker compose up -d` 后前端接口全部 502
+### 9. `docker compose up -d` 后前端接口全部 502
 
 - **现象**：前端页面能打开，但 `/api/files`、`/api/history`、`/api/token` 等接口全部返回 `502 Bad Gateway`
 - **原因**：前端容器已经启动，但后端容器此时可能仍在加载依赖或模型，Nginx 代理到 `backend:8001` 时会出现短暂连接失败
