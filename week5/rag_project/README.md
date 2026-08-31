@@ -307,7 +307,7 @@ scp docker-compose.prod.yml root@<SERVER_IP>:/opt/ask/docker-compose.yml
 
 ```bash
 tar -czf hf-cache.tar.gz hf-cache
-scp hf-cache.tar.gz root@159.75.128.138:/opt/ask/
+scp hf-cache.tar.gz root@<SERVER_IP>:/opt/ask/
 ```
 
 ### Step 4：服务器加载并启动
@@ -393,6 +393,13 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 }
+```
+
+修改宿主机 Nginx 配置后，记得先校验配置，再重载服务：
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
 这样浏览器访问：
