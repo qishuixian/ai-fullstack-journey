@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>咸水仙 · 全栈工程师</title>
+    <!-- 字体与图标 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <style>
+        /* 全局重置 */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .card {
+            max-width: 760px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(12px);
+            border-radius: 32px;
+            padding: 48px 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        .avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 28px;
+            box-shadow: 0 8px 24px rgba(102,126,234,0.3);
+        }
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            font-size: 1.125rem;
+            color: #64748b;
+            font-weight: 400;
+            margin-bottom: 24px;
+        }
+        .bio {
+            font-size: 1rem;
+            line-height: 1.75;
+            color: #334155;
+            margin-bottom: 32px;
+        }
+        .skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 32px;
+        }
+        .skill-tag {
+            background: #eef2ff;
+            color: #4338ca;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .skill-tag:hover {
+            background: #4338ca;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .projects {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+        }
+        .project-card {
+            flex: 1;
+            min-width: 160px;
+            background: #ffffffcc;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 16px 18px;
+            text-decoration: none;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .project-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 6px 20px rgba(102,126,234,0.15);
+            transform: translateY(-4px);
+        }
+        .project-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            color: white;
+            flex-shrink: 0;
+        }
+        .project-icon.chat { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .project-icon.ask  { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .project-info h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        .project-info p {
+            font-size: 0.8rem;
+            color: #64748b;
+            margin: 0;
+        }
+        .links {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+        .links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: #475569;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 99px;
+            background: #f1f5f9;
+            transition: all 0.2s;
+        }
+        .links a:hover {
+            background: #1e293b;
+            color: white;
+            transform: scale(1.04);
+        }
+        .footer-note {
+            margin-top: 36px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 0.8125rem;
+            color: #94a3b8;
+            text-align: center;
+        }
+        .footer-note a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+        @media (max-width: 480px) {
+            .card { padding: 32px 24px; }
+            h1 { font-size: 1.625rem; }
+            .project-card { min-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <!-- 头像（首字母） -->
+        <div class="avatar">X</div>
+
+        <!-- 姓名 & 头衔 -->
+        <h1>咸水仙</h1>
+        <div class="subtitle">全栈工程师 · 终身学习者</div>
+
+        <!-- 个人介绍 -->
+        <div class="bio">
+            十年前端深耕，如今迈向全栈。热爱用技术创造价值，擅长 
+            <strong>React / Vue</strong> 生态、<strong>Node.js</strong> 后端以及 
+            <strong>LangChain / RAG</strong> 智能应用。相信好的架构能让产品走得更远。
+        </div>
+
+        <!-- 技能标签 -->
+        <div class="skills">
+            <span class="skill-tag">JavaScript / TypeScript</span>
+            <span class="skill-tag">React & Vue</span>
+            <span class="skill-tag">Node.js</span>
+            <span class="skill-tag">Python</span>
+            <span class="skill-tag">Docker</span>
+            <span class="skill-tag">LangChain</span>
+            <span class="skill-tag">PostgreSQL</span>
+            <span class="skill-tag">RAG</span>
+        </div>
+
+        <!-- 项目展示（可点击跳转） -->
+        <div class="projects">
+            <a href="https://qishuixian.com/chat" target="_blank" class="project-card">
+                <div class="project-icon chat"><i class="fas fa-comment-dots"></i></div>
+                <div class="project-info">
+                    <h3>Chat</h3>
+                    <p>智能对话 · Agent 助手</p>
+                </div>
+            </a>
+            <a href="https://qishuixian.com/ask" target="_blank" class="project-card">
+                <div class="project-icon ask"><i class="fas fa-book-open"></i></div>
+                <div class="project-info">
+                    <h3>Ask</h3>
+                    <p>RAG 知识库 · 文档问答</p>
+                </div>
+            </a>
+        </div>
+
+        <!-- 社交链接 -->
+        <div class="links">
+            <a href="https://github.com/qishuixian" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+            <a href="https://juejin.cn/user/395479917294830" target="_blank"><i class="fab fa-juejin"></i> 掘金</a>
+            <a href="https://blog.csdn.net/qishuixian" target="_blank"><i class="fas fa-blog"></i> 博客</a>
+        </div>
+
+        <!-- 备案号（ICP + 公安） -->
+        <div class="footer-note">
+           <!-- 1. ICP 备案号 (跳转工信部) -->
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">
+                粤ICP备2026115522号-1
+            </a>
+            &nbsp;·&nbsp;
+           <!-- 2. 公网安备号 (跳转公安平台，带官方图标) -->
+            <a href="https://beian.mps.gov.cn/#/query/webSearch?code=44011802001550" 
+                target="_blank" 
+                rel="noopener noreferrer">
+               
+                粤公网安备 44011802001550号
+            </a>
+            <br>
+            © 2026 咸水仙 · All Rights Reserved
+        </div>
+    </div>
+</body>
+</html>
