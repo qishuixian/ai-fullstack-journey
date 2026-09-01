@@ -316,11 +316,135 @@ docker build -t chat-agent-backend:latest -f backend/Dockerfile backend/
 docker build -t chat-agent-frontend:latest -f frontend/Dockerfile frontend/
 ```
 
+如果你要完全对齐 `week5/rag_project` 的发布方式，建议构建镜像后先导出：
+
+```powershell
+docker save chat-agent-backend:latest -o chat-agent-backend.tar
+docker save chat-agent-frontend:latest -o chat-agent-frontend.tar
+```
+
 ## 服务器部署步骤
 
-### Step 1：准备环境变量
+部署方式按 `week5/rag_project` 保持一致：  
+先在本地整理项目目录，打包压缩文件上传服务器；然后在服务器上解压、补环境变量、启动 Docker。
 
-在服务器项目目录里准备：
+### Step 1：本地整理发布目录
+
+建议先确认下面这些内容已经准备好：
+
+- `backend/.env` 已填写真实的 `DEEPSEEK_API_KEY`
+- `frontend` 已能本地完成 `npm run build`
+- `docker-compose.yml`、前后端 `Dockerfile`、Nginx 配置文件都在项目目录中
+
+建议发布目录结构如下：
+
+```text
+langchain-project/
+├─ backend/
+│  ├─ .env
+│  ├─ auth.py
+│  ├─ database.py
+│  ├─ dependencies.py
+│  ├─ Dockerfile
+│  ├─ main.py
+│  └─ requirements.txt
+├─ frontend/
+│  ├─ Dockerfile
+│  ├─ nginx.chat-agent.conf
+│  ├─ package.json
+│  ├─ package-lock.json
+│  ├─ src/
+│  └─ ...
+├─ docker-compose.yml
+├─ nginx.chatagent.conf
+└─ README.md
+```
+
+### Step 2：本地打包压缩文件
+
+如果你想和 week5 一样走“先打包再上传”的方式，可以直接在 `week7` 目录下把整个 `langchain-project` 打成压缩包。
+
+Windows 下可以直接手动压缩成 `rar` 或 `zip`。  
+如果本机安装了 WinRAR，也可以命令行打包：
+
+```powershell
+cd E:\my\ai-fullstack-journey\week7
+rar a langchain-project.rar .\langchain-project\
+```
+
+如果没有 `rar` 命令，用 PowerShell 自带压缩也可以：
+
+```powershell
+cd E:\my\ai-fullstack-journey\week7
+Compress-Archive -Path .\langchain-project\* -DestinationPath .\langchain-project.zip -Force
+```
+
+### Step 3：上传到服务器
+
+例如上传到服务器部署目录：
+
+```bash
+scp langchain-project.rar root@<SERVER_IP>:/opt/
+```
+
+如果你上传的是 zip，则改成：
+
+```bash
+scp langchain-project.zip root@<SERVER_IP>:/opt/
+```
+
+如果你还按 week5 的镜像导出方案走，也一并上传：
+
+```bash
+scp chat-agent-backend.tar root@<SERVER_IP>:/opt/
+scp chat-agent-frontend.tar root@<SERVER_IP>:/opt/
+scp docker-compose.prod.yml root@<SERVER_IP>:/opt/
+```
+
+### Step 4：服务器解压
+
+登录服务器后执行：
+
+```bash
+ssh root@<SERVER_IP>
+cd /opt
+```
+
+如果上传的是 `rar`：
+
+```bash
+mkdir -p /opt/chat-agent
+unrar x langchain-project.rar /opt/chat-agent/
+```
+
+如果上传的是 `zip`：
+
+```bash
+mkdir -p /opt/chat-agent
+unzip langchain-project.zip -d /opt/chat-agent
+```
+
+解压后，建议确认实际目录层级，保证最终启动目录里能直接看到：
+
+- `backend/`
+- `frontend/`
+- `docker-compose.yml`
+
+如果解压后多了一层目录，比如：
+
+```text
+/opt/chat-agent/langchain-project/
+```
+
+那就进入这一层再启动：
+
+```bash
+cd /opt/chat-agent/langchain-project
+```
+
+### Step 5：检查后端环境变量
+
+确认服务器上的：
 
 ```text
 backend/.env
@@ -337,11 +461,20 @@ TOOL_TIMEOUT_SECONDS=8
 TOOL_RETRY_COUNT=2
 ```
 
-### Step 2：启动容器
+### Step 6：加载镜像并启动容器
+
+如果你上传了导出的镜像包，先加载：
 
 ```bash
-cd /opt/chat-agent
-docker compose up --build -d
+docker load -i /opt/chat-agent-backend.tar
+docker load -i /opt/chat-agent-frontend.tar
+```
+
+然后进入最终项目目录，使用生产编排启动：
+
+```bash
+docker compose -f docker-compose.prod.yml down
+docker compose -f docker-compose.prod.yml up -d
 docker compose ps
 docker compose logs --tail=200 backend
 docker compose logs --tail=200 frontend
