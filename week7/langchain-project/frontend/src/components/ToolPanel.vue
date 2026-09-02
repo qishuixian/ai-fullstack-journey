@@ -47,6 +47,9 @@ defineProps<{
 <style scoped>
 .tool-panel {
   width: 360px;
+  min-width: 0;
+  min-height: 0;
+  height: 100vh;
   border-left: 1px solid var(--border-color);
   background: rgba(248, 250, 252, 0.92);
   display: flex;
@@ -76,6 +79,7 @@ defineProps<{
 
 .tool-event-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 14px;
   display: flex;

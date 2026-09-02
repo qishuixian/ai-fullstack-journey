@@ -21,7 +21,7 @@
       >
         <div class="session-card-main">
           <div class="session-card-title">{{ session.title }}</div>
-          <div class="session-card-time">{{ formatTime(session.updated_at) }}</div>
+          <div class="session-card-time">{{ formatTime(session.created_at) }}</div>
         </div>
 
         <el-popconfirm title="确认删除这个会话吗？" @confirm.stop="$emit('delete-session', session.id)">
@@ -35,10 +35,9 @@
     </div>
 
     <div class="sidebar-bottom">
-      <div class="sidebar-tip">
+      <!-- <div class="sidebar-tip">
         左侧保留你当前账号下的全部会话，互不串数据。
-      </div>
-
+      </div> -->
       <el-button text class="logout-btn" @click="$emit('logout')">
         退出登录
       </el-button>
@@ -62,7 +61,15 @@ defineProps<{
 defineEmits(['create-session', 'select-session', 'delete-session', 'logout'])
 
 function formatTime(value: string) {
-  return new Date(value).toLocaleString()
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  }).format(new Date(value))
 }
 </script>
 
@@ -76,6 +83,7 @@ function formatTime(value: string) {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  min-height: 0;
   backdrop-filter: blur(12px);
 }
 
@@ -108,6 +116,7 @@ function formatTime(value: string) {
 
 .session-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
   display: flex;
@@ -156,6 +165,7 @@ function formatTime(value: string) {
 }
 
 .sidebar-bottom {
+  flex-shrink: 0;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
 }
 

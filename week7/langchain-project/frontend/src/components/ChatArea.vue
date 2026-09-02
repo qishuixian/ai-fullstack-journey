@@ -76,7 +76,7 @@ const props = defineProps<{
   sessionId: string
 }>()
 
-defineEmits(['toggle-sidebar'])
+const emit = defineEmits(['toggle-sidebar', 'history-updated'])
 
 const messages = ref<MessageRecord[]>([])
 const toolEvents = ref<ToolEventRecord[]>([])
@@ -225,6 +225,7 @@ async function handleSend(text: string) {
           throw new Error(payload.content || '请求失败')
         } else if (payload.type === 'done') {
           await loadHistory()
+          emit('history-updated')
         }
       }
     }
@@ -273,6 +274,9 @@ defineExpose({
   flex: 1;
   display: flex;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(56, 189, 248, 0.1), transparent 22%),
     radial-gradient(circle at bottom left, rgba(249, 115, 22, 0.08), transparent 24%),
@@ -284,6 +288,8 @@ defineExpose({
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  height: 100vh;
 }
 
 .chat-header {

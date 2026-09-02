@@ -24,6 +24,7 @@
         ref="chatAreaRef"
         :token="getToken()"
         :session-id="currentSessionId"
+        @history-updated="handleHistoryUpdated"
         @toggle-sidebar="isMobileSidebarOpen = !isMobileSidebarOpen"
       />
     </div>
@@ -122,6 +123,10 @@ function handleSelectSession(sessionId: string) {
   currentSessionId.value = sessionId
   isMobileSidebarOpen.value = false
   chatAreaRef.value?.loadHistory()
+}
+
+async function handleHistoryUpdated() {
+  await loadSessions()
 }
 
 async function handleDeleteSession(sessionId: string) {
