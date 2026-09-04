@@ -1,137 +1,171 @@
 import os
-import sys
-from typing import Annotated, TypedDict
-
+import json
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI  # 虽然叫 ChatOpenAI，但实际连 DeepSeek
-from langgraph.graph import END, START, StateGraph
-from langgraph.graph.message import add_messages
+from typing import TypedDict, Annotated, Literal
+import operator
+
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
-from langgraph.errors import GraphRecursionError
+from langchain_core.tools import tool
 
-# 加载环境变量
+# ==================== 0. 环境初始化 ====================
 load_dotenv()
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
 
-# ==================== 1. 初始化 DeepSeek LLM ====================
+# 使用 DeepSeek 兼容 OpenAI 格式
 llm = ChatOpenAI(
-    model=os.getenv("MODEL_NAME", "deepseek-chat"),
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    model="deepseek-chat", 
     temperature=0,
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com"
 )
 
-# ==================== 2. 定义工具 ====================
+# ==================== 1. 定义工具 ====================
 @tool
-def calculator(expression: str) -> str:
-    """计算数学表达式。输入如 '123 * 456'。"""
-    try:
-        allowed = set("0123456789+-*/(). ")
-        if any(char not in allowed for char in expression):
-            return "错误：包含非法字符"
-        return str(eval(expression))
-    except Exception as exc:
-        return f"计算错误: {exc}"
+def calculator(a: int, b: int) -> int:
+    """计算两个整数的乘法。"""
+    return a * b
 
 @tool
 def search_web(query: str) -> str:
-    """模拟搜索网页，返回假数据。"""
-    return f"搜索结果：关于'{query}'的最新信息是：(假数据) 今天气温 25 度。"
+    """搜索实时信息（如天气）。"""
+    # 模拟假数据
+    return f"(假数据) 今天气温 25 度。"
 
 calc_tools = [calculator]
 search_tools = [search_web]
 
-# ==================== 3. 定义状态 ====================
+# ==================== 2. 定义状态 ====================
 class AgentState(TypedDict):
-    messages: Annotated[list, add_messages]
-    next: Annotated[str, lambda x, y: y]   # 记录下一步去向
+    messages: Annotated[list, operator.add]
+    next: str 
+    iterations: int # 熔断计数器
 
-# ==================== 4. 定义节点 ====================
-
-# --- 改造点 1：使用工具调用的主管路由（兼容 DeepSeek）---
+# ==================== 3. 定义节点 ====================
 def supervisor_node(state: AgentState) -> dict:
-    """主管节点：通过工具调用决定下一步"""
+    """主管节点：决定下一步（宽松匹配版）"""
+    # 计数器兜底防死循环
+    if state.get("iterations", 0) > 3:
+        return {"next": "end", "messages": [AIMessage(content="达到最大迭代次数，强制结束")]}
+        
+    last_message = state["messages"][-1]
     
-    # 如果最后一条是工具结果，说明子任务完成，直接总结
-    if state["messages"][-1].type == "tool":
+    # 如果是工具返回的结果，直接总结
+    if isinstance(last_message, ToolMessage):
         response = llm.invoke(state["messages"] + [HumanMessage(content="请根据工具结果总结回答用户。")])
-        return {"messages": [response]}
+        return {"messages": [response], "next": "end"}
     
-    # 给主管绑定一个路由工具，强制它通过工具调用来输出路由决策
-    @tool
-    def route(next_step: str) -> str:
-        """选择下一个要执行的角色。可选值：'calc'（计算）, 'search'（搜索）, 'end'（结束）。"""
-        return next_step
-    
-    # 绑定路由工具，并设置 tool_choice 强制调用
-    supervisor_llm = llm.bind_tools([route], tool_choice="route")
-    
-    prompt = HumanMessage(content="你是主管。根据用户输入决定下一步：需要计算选 'calc'，需要搜索选 'search'，如果可以直接回答或已完成选 'end'。请调用 route 工具做出选择。")
-    
-    response = supervisor_llm.invoke(state["messages"] + [prompt])
-    
-    # 提取工具调用参数
-    if hasattr(response, "tool_calls") and response.tool_calls:
-        next_value = response.tool_calls[0]["args"]["next_step"]
-        return {"next": next_value}
-    else:
-        # 如果模型没有调用工具，默认结束（防止死循环）
-        return {"next": "end"}
+    # 不使用工具调用，直接让模型思考并输出文本
+    prompt = HumanMessage(content="""你是主管。分析用户需求：
+            - 如果需要计算数学题，你的回复必须包含关键字 calc。
+            - 如果需要搜索信息（如天气），你的回复必须包含关键字 search。
+            - 如果可以直接回答或任务已完成，回复 end。
 
+            用户当前输入和历史记录如上，请做出决定。""")
+    
+    response = llm.invoke(state["messages"] + [prompt])
+    content = response.content.lower() # 转小写匹配
+    
+    # 宽松匹配逻辑
+    if "calc" in content:
+        next_value = "calc"
+    elif "search" in content:
+        next_value = "search"
+    else:
+        next_value = "end"
+        
+    return {
+        "next": next_value, 
+        "messages": [response], 
+        "iterations": state.get("iterations", 0) + 1
+    }
 def calc_agent_node(state: AgentState) -> dict:
-    """计算专员"""
+    """计算专员：绑定计算工具"""
     llm_with_tools = llm.bind_tools(calc_tools)
     response = llm_with_tools.invoke(state["messages"])
     return {"messages": [response]}
 
 def search_agent_node(state: AgentState) -> dict:
-    """搜索专员"""
+    """搜索专员：绑定搜索工具"""
     llm_with_tools = llm.bind_tools(search_tools)
     response = llm_with_tools.invoke(state["messages"])
     return {"messages": [response]}
 
-# ==================== 5. 构建图 ====================
+# 自定义工具执行节点：确保正确返回 ToolMessage 并打上防污染标记
+def custom_tool_node(state: AgentState) -> dict:
+    """显式执行工具并封装为 ToolMessage"""
+    last_message = state["messages"][-1]
+    if not hasattr(last_message, "tool_calls") or not last_message.tool_calls:
+        return {}
+        
+    tool_messages = []
+    for tc in last_message.tool_calls:
+        # 简单执行工具
+        if tc["name"] == "calculator":
+            res = calculator.invoke(tc["args"])
+        elif tc["name"] == "search_web":
+            res = search_web.invoke(tc["args"])
+        else:
+            res = "未知工具"
+            
+        # 封装为标准 ToolMessage，并加入特征标记防止模型误判为新的指令
+        tool_messages.append(
+            ToolMessage(
+                content=f"__agent_result__ {res}", 
+                tool_call_id=tc["id"]
+            )
+        )
+    return {"messages": tool_messages}
+
+# ==================== 4. 构建图 ====================
 builder = StateGraph(AgentState)
 
 builder.add_node("supervisor", supervisor_node)
 builder.add_node("calc", calc_agent_node)
 builder.add_node("search", search_agent_node)
-builder.add_node("calc_tools", ToolNode(calc_tools))
-builder.add_node("search_tools", ToolNode(search_tools))
+builder.add_node("tools", custom_tool_node) # 使用自定义工具节点
 
 builder.add_edge(START, "supervisor")
 
+# 主管路由
 builder.add_conditional_edges(
     "supervisor",
     lambda state: state["next"],
     {"calc": "calc", "search": "search", "end": END}
 )
 
-builder.add_edge("calc", "calc_tools")
-builder.add_edge("search", "search_tools")
-builder.add_edge("calc_tools", "supervisor")
-builder.add_edge("search_tools", "supervisor")
+# 子Agent调用工具判断
+def check_tool_calls(state: AgentState) -> str:
+    last_message = state["messages"][-1]
+    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+        return "tools"
+    return END
 
-# --- 改造点 2：编译时设置递归限制 ---
+builder.add_conditional_edges("calc", check_tool_calls, {"tools": "tools", END: END})
+builder.add_conditional_edges("search", check_tool_calls, {"tools": "tools", END: END})
+
+# 工具执行完强制回到主管复盘
+builder.add_edge("tools", "supervisor")
+
 app = builder.compile()
 
-# ==================== 6. 运行测试 ====================
+# ==================== 5. 运行测试 ====================
 if __name__ == "__main__":
-    print("=== 开始运行 Day 4 Multi-Agent (DeepSeek 版) ===")
+    print("=== 开始运行 Day 4 Multi-Agent (DeepSeek 终极稳定版) ===")
     
-    # 测试搜索
-    inputs = {"messages": [HumanMessage(content="今天天气怎么样？")]}
+    inputs = {
+        "messages": [HumanMessage(content="今天天气怎么样？顺便算下 123 * 456")], 
+        "iterations": 0
+    }
     
     try:
-        # 运行时设置递归限制（公式：2 * 预期最大迭代次数 + 1）
-        result = app.invoke(inputs, {"recursion_limit": 7})
+        # 保留底层递归限制作为最后一道防线
+        result = app.invoke(inputs, {"recursion_limit": 10})
         
         print("\n=== 最终对话记录 ===")
         for msg in result["messages"]:
             print(f"[{msg.type}]: {msg.content}")
             
-    except GraphRecursionError:
-        print("❌ Agent 达到最大迭代次数，已停止（防止死循环烧钱）")
+    except Exception as e:
+        print(f"❌ 捕获到异常（已熔断）: {e}")
