@@ -54,3 +54,12 @@
 
 - [我的掘金](https://juejin.cn/column/7666799391334973474)
 - [我的个人博客](https://blog.csdn.net/qishuixian)
+
+
+## 资料
+- ChatOpenAI 集成指南（LangChain 官方）​（https://docs.langchain.com/oss/python/integrations/chat/openai）
+- 包含：安装方式、API Key 配置、base_url 设置、实例化参数、调用示例（https://reference.langchain.com/python/langchain-openai/langchain_openai/chat_models/base/ChatOpenAI）
+
+- LangChain 中文文档（辅助参考）（https://langchain.cadn.net.cn/）
+- DeepSeek API 文档（中文）​（https://api-docs.deepseek.com/zh-cn）
+
