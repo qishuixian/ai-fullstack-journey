@@ -40,6 +40,7 @@ def search_web(query: str) -> str:
     """模拟搜索网页，返回假数据。"""
     return f"搜索结果：关于'{query}'的最新信息是：(假数据) 今天气温 25 度。"
 
+# ==================== 2. 绑定工具给子 Agent ====================
 calc_tools = [calculator]
 search_tools = [search_web]
 

@@ -6,6 +6,8 @@
 
 ### Month 1 · AI 聊天全栈应用
 
+涉及目录：[week1](./week1)、[week2](./week2)、[week3](./week3)、[week4](./week4)。
+
 - ✅ Vue 3 + TypeScript + Element Plus 前端搭建
 - ✅ FastAPI + SQLAlchemy + JWT 后端开发
 - ✅ DeepSeek API 流式对话集成
@@ -17,6 +19,8 @@
 - ✅ 生产部署：本地构建 → tar 导出 → 服务器加载 → 容器启动
 
 ### Month 2 · RAG 知识库
+
+涉及目录：[week5](./week5)。
 
 - ✅ LangChain + ChromaDB 向量检索
 - ✅ 文档解析与嵌入
