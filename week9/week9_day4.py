@@ -35,7 +35,7 @@ def get_weather(city: str) -> str:
 tools = [calculator, get_weather]
 
 # ==================== 3. 绑定工具给 LLM ====================
-llm_with_tools = llm.bind_tools(tools, method="function_calling")
+llm_with_tools = llm.bind_tools(tools)
 
 # ==================== 4. 定义状态 ====================
 class AgentState(TypedDict):
