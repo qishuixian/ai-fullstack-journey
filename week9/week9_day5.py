@@ -6,18 +6,18 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMe
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode
-from langgraph.checkpoint.sqlite import SqliteSaver  # ✅ 记忆持久化
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.graph.message import add_messages
 
 load_dotenv()
 
-# ==================== 1. 初始化 LLM（带重试机制） ====================
+# ==================== 1. 初始化 LLM ====================
 llm = ChatOpenAI(
     model=os.getenv("MODEL_NAME", "deepseek-v4-flash"),
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url=os.getenv("BASE_URL", "https://api.deepseek.com"),
     temperature=0,
-    max_retries=3,          # ✅ 重试机制：LLM 调用失败时最多重试 3 次
+    max_retries=3,
     timeout=30
 )
 
@@ -36,16 +36,14 @@ def get_weather(city: str) -> str:
 tools = [calculator, get_weather]
 llm_with_tools = llm.bind_tools(tools)
 
-# ==================== 3. 定义状态（使用 add_messages 自动累加） ====================
+# ==================== 3. 定义状态 ====================
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
 
 # ==================== 4. 定义节点 ====================
-MAX_ITERATIONS = 5  # ✅ 熔断机制：最大循环次数
+MAX_ITERATIONS = 5
 
 def call_model(state: AgentState):
-    """LLM 推理节点"""
-    # 检查是否达到最大迭代次数（防止无限循环）
     ai_messages = [m for m in state["messages"] if isinstance(m, AIMessage)]
     if len(ai_messages) >= MAX_ITERATIONS:
         return {"messages": [AIMessage(content="❌ 已达到最大推理次数，请简化问题。")]}
@@ -60,7 +58,7 @@ def should_continue(state: AgentState) -> Literal["tools", END]:
         return "tools"
     return END
 
-# ==================== 5. 构建图并绑定 SqliteSaver ====================
+# ==================== 5. 构建图（⚠️ 不在全局编译，移到 main 内部） ====================
 workflow = StateGraph(AgentState)
 workflow.add_node("agent", call_model)
 workflow.add_node("tools", tool_node)
@@ -68,37 +66,37 @@ workflow.add_edge(START, "agent")
 workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", END: END})
 workflow.add_edge("tools", "agent")
 
-# ✅ 使用 SqliteSaver 持久化到本地文件
-memory = SqliteSaver.from_conn_string("checkpoints.db")
-app = workflow.compile(checkpointer=memory)
-
-# ==================== 6. 测试：跨会话记忆 ====================
+# ==================== 6. 测试 ====================
 def main():
     print("=== Week 9 Day 5：记忆持久化 + 错误处理 ===\n")
     
-    # 第一次对话（会话 ID = "session1"）
-    config = {"configurable": {"thread_id": "session1"}}
-    query1 = "我叫小明，帮我算 12 * 34"
-    print(f"🤔 用户: {query1}")
-    result1 = app.invoke({"messages": [HumanMessage(content=query1)]}, config)
-    print(f"💡 Agent: {result1['messages'][-1].content}\n")
-    
-    # 第二次对话（同一会话，Agent 应该记得用户名字）
-    query2 = "你还记得我叫什么吗？"
-    print(f"🤔 用户: {query2}")
-    result2 = app.invoke({"messages": [HumanMessage(content=query2)]}, config)
-    print(f"💡 Agent: {result2['messages'][-1].content}\n")
-    
-    # 第三次对话（新会话，Agent 应该忘记之前的信息）
-    config2 = {"configurable": {"thread_id": "session2"}}
-    query3 = "你还记得我叫什么吗？"
-    print(f"🤔 用户: {query3}（新会话）")
-    result3 = app.invoke({"messages": [HumanMessage(content=query3)]}, config2)
-    print(f"💡 Agent: {result3['messages'][-1].content}\n")
-    
-    print("=" * 70)
-    print("✅ 记忆持久化验证完成！")
-    print("📁 检查当前目录下的 checkpoints.db 文件")
+    # ✅ 在 with 块内编译并使用 checkpointer
+    with SqliteSaver.from_conn_string("checkpoints.db") as checkpointer:
+        checkpointer.setup()
+        app = workflow.compile(checkpointer=checkpointer)
+        
+        # 第一次对话
+        config = {"configurable": {"thread_id": "session1"}}
+        query1 = "我叫小明，帮我算 12 * 34"
+        print(f"🤔 用户: {query1}")
+        result1 = app.invoke({"messages": [HumanMessage(content=query1)]}, config)
+        print(f"💡 Agent: {result1['messages'][-1].content}\n")
+        
+        # 第二次对话（同一会话）
+        query2 = "你还记得我叫什么吗？"
+        print(f"🤔 用户: {query2}")
+        result2 = app.invoke({"messages": [HumanMessage(content=query2)]}, config)
+        print(f"💡 Agent: {result2['messages'][-1].content}\n")
+        
+        # 第三次对话（新会话）
+        config2 = {"configurable": {"thread_id": "session2"}}
+        query3 = "你还记得我叫什么吗？"
+        print(f"🤔 用户: {query3}（新会话）")
+        result3 = app.invoke({"messages": [HumanMessage(content=query3)]}, config2)
+        print(f"💡 Agent: {result3['messages'][-1].content}\n")
+        
+        print("=" * 70)
+        print("✅ 记忆持久化验证完成！")
 
 if __name__ == "__main__":
     main()
