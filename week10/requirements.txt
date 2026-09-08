@@ -1,0 +1,8 @@
+# Week 9: Function Calling, ReAct, LangGraph and persistent memory
+langchain-core==1.6.2
+langchain-openai==1.6.0
+langgraph==1.2.11
+langgraph-prebuilt==1.1.0
+langgraph-checkpoint-sqlite==3.1.1
+python-dotenv==1.2.3
+requests==2.34.2
