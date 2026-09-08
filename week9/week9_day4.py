@@ -1,10 +1,11 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode  # ✅ 修复：使用 ToolNode 替代 ToolExecutor
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, Annotated
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
+from langgraph.graph.message import add_messages  # 
 
 # 加载环境变量
 load_dotenv()
@@ -39,7 +40,8 @@ llm_with_tools = llm.bind_tools(tools)
 
 # ==================== 4. 定义状态 ====================
 class AgentState(TypedDict):
-    messages: list
+    # ✅ 修复：使用 Annotated 和 add_messages，让消息自动累加而不覆盖
+    messages: Annotated[list[BaseMessage], add_messages]
 
 # ==================== 5. 定义节点 (Node) ====================
 
@@ -47,6 +49,7 @@ def call_model(state: AgentState):
     """LLM 推理节点"""
     messages = state["messages"]
     response = llm_with_tools.invoke(messages)
+    # ✅ 修复：直接返回包含新响应的字典，add_messages 会自动把它追加到历史里
     return {"messages": [response]}
 
 # ✅ 修复：直接使用 ToolNode 替代手写的 execute_tools
