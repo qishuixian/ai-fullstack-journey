@@ -31,8 +31,15 @@
 
 ### Month 3 · Agent 智能体
 
-- [ ] LangGraph + Function Calling
-- [ ] 多工具调用
+涉及目录：[week7](./week7)、[week8](./week8)、[week9](./week9)。
+
+- ✅ LangChain 模型调用、Prompt、工具与 Agent 基础
+- ✅ LangGraph `StateGraph`、节点、条件路由与消息状态
+- ✅ Function Calling 与多工具调用
+- ✅ 纯 Python 手写 ReAct 循环
+- ✅ Supervisor / Worker 多 Agent 协作与并行分发
+- ✅ SQLite Checkpoint 会话记忆持久化
+- ✅ 重试、超时、最大迭代次数与循环熔断
 
 ### Month 4 · 工程化 + 求职
 
@@ -45,10 +52,10 @@
 |----|------|
 | 前端 | Vue 3, TypeScript, Vite, Vitest, marked.js |
 | 后端 | Python, FastAPI, Pydantic, SQLAlchemy, JWT, WebSocket, SSE |
-| AI 模型 | DeepSeek API（openai 兼容格式） |
+| AI / Agent | DeepSeek API（OpenAI 兼容格式）、LangChain、LangGraph、Function Calling、ReAct |
 | 数据库 | SQLite + SQLAlchemy（async） + aiosqlite |
 | 部署 | Docker, Docker Compose, Nginx, 腾讯云 |
-| 规划中 | LangChain, LangGraph, ChromaDB, vLLM |
+| 规划中 | vLLM、MCP |
 
 ## 相关链接
 
@@ -57,9 +64,9 @@
 
 
 ## 资料
-- ChatOpenAI 集成指南（LangChain 官方）​（https://docs.langchain.com/oss/python/integrations/chat/openai）
-- 包含：安装方式、API Key 配置、base_url 设置、实例化参数、调用示例（https://reference.langchain.com/python/langchain-openai/langchain_openai/chat_models/base/ChatOpenAI）
 
-- LangChain 中文文档（辅助参考）（https://langchain.cadn.net.cn/）
-- DeepSeek API 文档（中文）​（https://api-docs.deepseek.com/zh-cn）
+- [ChatOpenAI 集成指南（LangChain 官方）](https://docs.langchain.com/oss/python/integrations/chat/openai)
+- [ChatOpenAI API 参考](https://reference.langchain.com/python/langchain-openai/langchain_openai/chat_models/base/ChatOpenAI)
+- [LangChain 中文文档（辅助参考）](https://langchain.cadn.net.cn/)
+- [DeepSeek API 文档（中文）](https://api-docs.deepseek.com/zh-cn)
 
