@@ -1,0 +1,6 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+langchain-core==1.6.2
+langchain-openai==1.6.0
+python-dotenv==1.2.3
+httpx>=0.27,<1
