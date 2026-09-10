@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json  # 用于解析 args
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
@@ -33,57 +34,50 @@ tools = [get_weather, calculator]
 tool_map = {tool.name: tool for tool in tools}
 
 # 3. 辅助函数：流式收集并打印
-def stream_and_collect(llm_instance, messages):
-    """
-    流式调用 LLM，实时打印文本，并收集完整的 AIMessage。
-    返回 (完整AIMessage, 是否包含tool_calls)
-    """
-    collected_content = []
-    collected_tool_calls = []  # 存储 partial tool calls
-    current_tool_call = None   # 当前正在构建的工具调用
-
-    for chunk in llm_instance.stream(messages):
-        # 处理文本增量
-        if chunk.content:
-            collected_content.append(chunk.content)
-            print(chunk.content, end="", flush=True)
-            time.sleep(0.02)  # 模拟打字速度（可调节）
-
-        # 处理工具调用增量（LangChain 流式会分段给出 tool_call_chunks）
-        if hasattr(chunk, 'tool_call_chunks') and chunk.tool_call_chunks:
-            for tc_chunk in chunk.tool_call_chunks:
-                index = tc_chunk.index
-                # 如果是新的工具调用起始
-                if len(collected_tool_calls) <= index:
-                    collected_tool_calls.append({
-                        "name": "",
-                        "args": "",
-                        "id": tc_chunk.id or ""
-                    })
-                # 累积 name 和 args
-                if tc_chunk.name:
-                    collected_tool_calls[index]["name"] += tc_chunk.name
-                if tc_chunk.args:
-                    collected_tool_calls[index]["args"] += tc_chunk.args
-                if tc_chunk.id:
-                    collected_tool_calls[index]["id"] = tc_chunk.id
-
-    # 组装最终的 AIMessage
-    full_content = "".join(collected_content)
+def stream_and_collect(llm_with_tools, messages):
+    full_content = ""
     final_tool_calls = []
-    for tc in collected_tool_calls:
-        if tc["name"]:  # 只有有 name 才算有效工具调用
-            final_tool_calls.append({
-                "name": tc["name"],
-                "args": tc["args"],  # 仍是 JSON 字符串
-                "id": tc["id"]
-            })
+    
+    for chunk in llm_with_tools.stream(messages):
+        if chunk.content:
+            print(chunk.content, end="", flush=True)
+            full_content += chunk.content
+            
+        if chunk.tool_call_chunks:
+            for tc_chunk in chunk.tool_call_chunks:
+                # 兼容处理：LangChain 流式输出时，tc_chunk 可能是字典或对象
+                tc_index = tc_chunk.get("index") if isinstance(tc_chunk, dict) else tc_chunk.index
+                tc_id = tc_chunk.get("id") if isinstance(tc_chunk, dict) else tc_chunk.id
+                tc_name = tc_chunk.get("name") if isinstance(tc_chunk, dict) else tc_chunk.name
+                tc_args = tc_chunk.get("args") if isinstance(tc_chunk, dict) else tc_chunk.args
+                
+                # 兼容 DeepSeek/OpenAI 流式缺失 index 的情况
+                if tc_index is None:
+                    tc_index = 0 
+                
+                # 找是否已经存在该工具调用
+                existing = None
+                for ftc in final_tool_calls:
+                    if ftc["id"] == tc_id or (tc_id is None and ftc["index"] == tc_index):
+                        existing = ftc
+                        break
+                        
+                if existing:
+                    if tc_name: existing["name"] = tc_name
+                    if tc_args: existing["args"] += tc_args
+                    if tc_id: existing["id"] = tc_id
+                else:
+                    final_tool_calls.append({
+                        "name": tc_name,
+                        "args": tc_args or "",
+                        "id": tc_id,
+                        "index": tc_index
+                    })
 
-    # 构造 AIMessage（包含完整 tool_calls 结构）
-    ai_msg = AIMessage(content=full_content or None)
+    # 构造 AIMessage
+    ai_msg = AIMessage(content=full_content or "")  # 修复点：确保 content 永远是字符串，不能是 None
+    
     if final_tool_calls:
-        # 需要转换为 LangChain 的标准 tool_calls 格式
-        from langchain_core.messages.tool import tool_call
         ai_msg.tool_calls = [
             {
                 "name": tc["name"],
@@ -93,8 +87,6 @@ def stream_and_collect(llm_instance, messages):
             for tc in final_tool_calls
         ]
     return ai_msg
-
-import json  # 用于解析 args
 
 # 4. ReAct 主循环（流式版）
 def react_stream(user_input: str, max_steps: int = 5) -> str:
