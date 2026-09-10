@@ -33,9 +33,6 @@ def send_email(to: str, subject: str, body: str) -> str:
     # 模拟发送
     return f"邮件已发送至 {to}，主题：{subject}"
 
-# 标记敏感工具（通过附加属性）
-send_email.is_sensitive = True  # 自定义属性
-
 tools = [get_weather, calculator, send_email]
 tool_map = {tool.name: tool for tool in tools}
 
@@ -80,9 +77,15 @@ def react_with_hitl(user_input: str, max_steps: int = 5) -> str:
                 
                 print(f"  ▶ 准备调用工具：{tool_name}({tool_args})")
                 
-                # 检查是否是敏感工具
+                # 获取工具对象
                 tool_func = tool_map.get(tool_name)
-                if tool_func and getattr(tool_func, "is_sensitive", False):
+                
+                # 【修复点】：通过工具名称（或 metadata）判断是否敏感
+                is_sensitive = tool_name == "send_email" 
+                # 进阶写法：如果创建工具时传了 metadata={"is_sensitive": True}，可以用下面这行：
+                # is_sensitive = tool_func and tool_func.metadata.get("is_sensitive", False)
+                
+                if tool_func and is_sensitive:
                     # 需要人工审核
                     approved = human_approve(tool_name, tool_args)
                     if approved:
@@ -113,7 +116,6 @@ def react_with_hitl(user_input: str, max_steps: int = 5) -> str:
             return response.content
     
     return "❌ 超过最大推理轮数。"
-
 # 5. 测试
 if __name__ == "__main__":
     test_cases = [
