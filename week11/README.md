@@ -13,6 +13,8 @@
 | 前后端开发 | <http://localhost:8003> | Vite 8003 + FastAPI 8083 |
 | 打包后运行 | <http://127.0.0.1:8083> | 先构建前端，再启动 FastAPI 8083 |
 | API 文档 | <http://127.0.0.1:8083/docs> | FastAPI 8083 |
+| Docker 本机验证 | <http://localhost:8003/messageAgent/> | 前端 Nginx + FastAPI 容器 |
+| 线上 Docker 部署 | <https://qishuixian.com/messageAgent/> | 宿主机 HTTPS Nginx + 两个容器 |
 
 本周端口固定为**后端 8083、前端 8003**。建议始终使用同一个页面地址：`localhost`、`127.0.0.1` 和不同端口拥有独立的 localStorage，因此不会共用浏览器里的会话列表。
 
@@ -211,6 +213,179 @@ cd ../backend
 | 流中断后没有自动恢复 | 这是防重复执行设计；重新载入会话核对历史后，再提交新任务 |
 | 审核返回 409 | 审核可能已处理、超时、取消，或与请求中的会话不匹配；检查当前轮次状态 |
 | 切换地址后会话列表为空 | 浏览器按来源隔离 localStorage，回到原来的主机名和端口查看 |
+
+## Docker 部署到 `/messageAgent/`
+
+参考 Week 7 的前后端双容器部署，线上地址为 **<https://qishuixian.com/messageAgent/>**。以下是部署配置与操作步骤；创建文件和本机验证不等同于已经部署到线上服务器。
+
+### 文件与请求路径
+
+| 文件 | 作用 |
+| --- | --- |
+| `backend/Dockerfile`、`backend/.dockerignore` | Python 3.11 镜像，只复制运行源码和依赖清单，不打包密钥、数据库或本机虚拟环境 |
+| `frontend/Dockerfile`、`frontend/.dockerignore` | Node 22 构建 Vue，Nginx 提供页面；不复制本机依赖和环境文件 |
+| `frontend/nginx.message-agent.conf` | 容器静态资源与 API/SSE 转发 |
+| `docker-compose.yml` | 从源码构建并启动两个服务 |
+| `docker-compose.prod.yml` | 使用已导入的镜像启动，无需上传源码构建 |
+| `nginx.messageagent.conf` | 加入宿主机已有 HTTPS `server` 的 location 配置 |
+
+```text
+https://qishuixian.com/messageAgent/
+  → 宿主机 Nginx（保留 /messageAgent/ 前缀）
+  → 127.0.0.1:8003 → 前端容器 Nginx:80
+      /messageAgent/             → Vue 页面
+      /messageAgent/assets/...   → 静态资源
+      /messageAgent/api/chat     → backend:8083/chat（SSE）
+      /messageAgent/api/approve  → backend:8083/approve
+      /messageAgent/api/sessions → backend:8083/sessions
+```
+
+Docker 构建时设置 `VITE_BASE_URL=/messageAgent/` 和 `VITE_API_BASE_URL=/messageAgent/api/`，同时适配资源路径、首页链接、fetch 和 EventSource。普通本地开发及前文 FastAPI 单端口模式仍默认使用根路径。Docker 模式下页面由前端容器提供，8083 仅提供 API。
+
+宿主机代理只匹配 `/messageAgent/`，不会接管站点的全局 `/api/` 或 Week 7 的 `/chatAgent/`。端口绑定在宿主机 `127.0.0.1`，对外入口使用已有 HTTPS Nginx。两层代理均关闭 SSE 缓冲、缓存和压缩，并设置 300 秒读取超时。
+
+### 方式一：在服务器从源码构建
+
+服务器需要 Docker Engine、Compose V2 和已有的 HTTPS Nginx。先进入服务器上的仓库 `week11` 目录，再运行：
+
+```bash
+# 首次配置；已有 .env 时保留原配置
+test -f backend/.env || cp backend/.env.example backend/.env
+# 编辑 backend/.env，填写 DEEPSEEK_API_KEY 等配置
+docker compose config --quiet
+docker compose up -d --build
+docker compose ps
+curl -f http://127.0.0.1:8083/health
+curl -f http://127.0.0.1:8003/messageAgent/api/health
+```
+
+本机也可以从 `week11` 执行相同的 Compose 命令，浏览器访问 <http://localhost:8003/messageAgent/>。先停止占用 8003/8083 的 Vite、Uvicorn 或旧容器；不要同时运行两套服务。
+
+### 方式二：本机构建镜像，上传服务器
+
+在本机仓库 `week11` 目录执行（PowerShell）：
+
+```powershell
+docker compose build
+docker save -o message-agent-images.tar message-agent-backend:latest message-agent-frontend:latest
+ssh root@<SERVER_IP> "mkdir -p /opt/message-agent/backend"
+scp message-agent-images.tar docker-compose.prod.yml nginx.messageagent.conf root@<SERVER_IP>:/opt/message-agent/
+scp backend/.env.example root@<SERVER_IP>:/opt/message-agent/backend/.env.example
+```
+
+镜像架构必须匹配服务器。默认使用当前 Docker 引擎的平台；例如 ARM 机器向 x86_64 服务器交付时，需要使用 Buildx 为 `linux/amd64` 构建这两个镜像。
+
+服务器执行：
+
+```bash
+cd /opt/message-agent
+test -f backend/.env || cp backend/.env.example backend/.env
+# 在服务器编辑 backend/.env，填写模型配置
+docker load -i message-agent-images.tar
+docker compose -f docker-compose.prod.yml config --quiet
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
+curl -f http://127.0.0.1:8003/messageAgent/api/health
+```
+
+`docker save` 生成的归档和 `data/` 已加入忽略规则。无需上传本机 `.env`、虚拟环境、node_modules 或 SQLite 数据库。
+
+### 宿主机 Nginx 反向代理
+
+完成上面的 Docker 启动后，在**服务器宿主机**配置 Nginx，将线上 `/messageAgent/` 请求转发给宿主机 `8003` 端口上的前端容器。前端容器再负责静态页面和 API/SSE 转发，宿主机无需单独配置全局 `/api/`。
+
+**第一步：找到正在生效的站点配置。**
+
+```bash
+sudo nginx -T
+```
+
+在输出中找到 `server_name qishuixian.com;` 对应的 HTTPS `server` 块及其所属文件。常见位置是 `/etc/nginx/sites-enabled/`、`/etc/nginx/conf.d/`，宝塔环境可能位于 `/www/server/panel/vhost/nginx/`；以 `nginx -T` 实际输出为准，不要另建一个同域名的重复 `server`。
+
+**第二步：在已有 HTTPS `server { ... }` 内添加以下配置。**
+
+保留原有 `listen 443 ssl`、域名、证书和其他应用配置，把下面两个 `location` 放在 `server` 内，与其他 `location` 平级：
+
+```nginx
+# https://qishuixian.com/messageAgent → 补齐尾斜杠
+location = /messageAgent {
+    return 301 /messageAgent/;
+}
+
+# https://qishuixian.com/messageAgent/ → Week 11 前端容器
+location ^~ /messageAgent/ {
+    # 此处不加尾斜杠，保留完整的 /messageAgent/ 请求路径
+    proxy_pass http://127.0.0.1:8003;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Connection "";
+
+    # SSE：避免代理攒满数据后才一次性返回
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 300s;
+    gzip off;
+
+    # /chat 使用 GET，查询参数包含用户输入
+    access_log off;
+}
+```
+
+
+这里必须代理到 **8003 前端容器**；8083 是后端 API 端口，不提供 Docker 版前端页面。`proxy_pass http://127.0.0.1:8003;` 不含 URI 部分，会保留 `/messageAgent/` 前缀；若写成 `http://127.0.0.1:8003/`，Nginx 会替换匹配前缀，导致前端容器收到错误路径。
+
+也可以使用仓库提供的 [nginx.messageagent.conf](./nginx.messageagent.conf)，上传至 `/opt/message-agent/` 后，在同一个 HTTPS `server` 内引用：
+
+```nginx
+# 放在已有的 server { listen 443 ssl; server_name qishuixian.com; ... } 内
+include /opt/message-agent/nginx.messageagent.conf;
+```
+
+直接粘贴与 `include` **二选一**，不要重复添加。使用源码部署时，将 include 改成服务器上片段的实际绝对路径。该文件只有 `location`，不能直接放到 Nginx 顶层或 `http` 块中，也不能作为完整站点文件覆盖现有配置。
+
+**第三步：先验证容器入口，再检查配置并重载 Nginx。**
+
+```bash
+# 在宿主机验证前端容器及内部 API 转发
+curl -I http://127.0.0.1:8003/messageAgent/
+curl -f http://127.0.0.1:8003/messageAgent/api/health
+
+# 只有语法检查成功才执行重载
+sudo nginx -t && sudo systemctl reload nginx
+
+# 最后验证 HTTPS 入口
+curl -I https://qishuixian.com/messageAgent/
+curl -f https://qishuixian.com/messageAgent/api/health
+```
+
+如果 Nginx 由宝塔等面板管理，语法检查通过后使用面板的“重载配置”；未使用 systemd 时，可执行 `sudo nginx -s reload`。命令需指向当前运行实例对应的 Nginx。
+
+页面入口：<https://qishuixian.com/messageAgent/>。`/messageAgent` 会重定向到带尾斜杠的路径，缺失的静态资源返回 404，避免错误地返回 HTML。
+
+若容器入口正常而域名返回 404，检查是否编辑了生效的 HTTPS 站点并成功重载；返回 502 时检查 `docker compose ps` 和宿主机 8003 端口；回复一次性出现时检查宿主机与容器两层 Nginx 的 `proxy_buffering off` 是否都生效。
+
+### 数据持久化、升级与验收
+
+SQLite 挂载到部署目录的 `data/agent_memory.db`，容器重建后保留。不要删除 `data/`；需要备份时先停止 backend，再复制数据库文件，完成后启动 backend。当前审核和运行锁在内存中，后端保持默认单进程运行，不要添加多个 worker 或扩容副本。
+
+源码更新后执行 `docker compose up -d --build`；镜像交付则重新 `docker load` 后执行 `docker compose -f docker-compose.prod.yml up -d`。仅修改 `backend/.env` 时，可执行对应 Compose 命令的 `up -d --force-recreate backend frontend`。Compose 需要 2.17+，已设置依赖服务更新时重启前端，使 Nginx 重新解析后端容器地址。重建会中断执行中的对话，先等待现有任务结束。
+
+验收清单：
+
+1. 打开线上入口，确认 JS/CSS 请求位于 `/messageAgent/assets/`，页面无空白和资源 404。
+2. 新建会话并发送乘法任务，确认请求位于 `/messageAgent/api/chat`，回复逐步出现，而不是全部生成后一次出现。
+3. 发起模拟邮件，分别测试批准和拒绝；POST 地址应为 `/messageAgent/api/approve`。
+4. 刷新页面、切换会话，检查历史恢复；重建容器后，同一浏览器来源仍能读取已保存会话。
+5. 如果本机 8003 路径可访问而域名不可访问，检查宿主机启用的站点文件和 Nginx 重载结果；若流被缓冲，检查两层代理是否都使用本项目配置。
+
+容器日志：`docker compose logs --tail=100 backend frontend`（镜像部署加 `-f docker-compose.prod.yml`）。API 代理及 Uvicorn 已关闭访问日志，避免 SSE 查询字符串中的用户问题被常规访问日志记录。应用目前没有账号认证，上线前需要在网关增加访问控制；session_id 只用于会话隔离。
+
+本次 Docker 验证记录（2026-09-10）：两个镜像实际构建成功，Compose 配置及两份 Nginx 配置通过检查；在临时端口启动容器后，验证了子路径重定向、HTML/JS/CSS、资源 404、API 转发和真实模型计算器 SSE。浏览器通过 `/messageAgent/` 发起模拟邮件，审核拒绝成功回传，模型继续完成回复。临时测试使用独立数据卷，不占用开发服务的 8003/8083，也未修改线上 Nginx。
+
+随后重建两个测试容器，刷新浏览器仍能恢复完整会话和审核轨迹，验证了数据卷持久化。测试容器与临时数据卷已清理，构建镜像保留在本机。
 
 ## 当前边界与后续扩展
 

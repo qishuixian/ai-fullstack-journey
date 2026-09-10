@@ -14,6 +14,8 @@ type AgentEvent = {
   status?: string;
 };
 type Turn = { id: string; user: string; events: AgentEvent[] };
+const baseUrl = import.meta.env.BASE_URL;
+const apiBase = (import.meta.env.VITE_API_BASE_URL || "/").replace(/\/$/, "");
 const sessions = ref<Session[]>([]);
 const selected = ref("");
 const turns = ref<Turn[]>([]);
@@ -41,7 +43,7 @@ function persist() {
 }
 async function api(path: string, body?: unknown) {
   const response = await fetch(
-    path,
+    `${apiBase}${path}`,
     body === undefined
       ? undefined
       : {
@@ -154,7 +156,7 @@ async function send() {
     persist();
   }
   source = new EventSource(
-    `/chat?${new URLSearchParams({ session_id: selected.value, request_id: turn.id, message: text })}`,
+    `${apiBase}/chat?${new URLSearchParams({ session_id: selected.value, request_id: turn.id, message: text })}`,
   );
   source.onmessage = ({ data }) => {
     const event: AgentEvent = JSON.parse(data);
@@ -237,7 +239,7 @@ onUnmounted(() => {
 <template>
   <div class="studio">
     <aside class="sidebar">
-      <a class="brand" href="/"
+      <a class="brand" :href="baseUrl"
         >◈ <span>ReAct <b>Studio</b></span></a
       >
       <div class="chapter">WEEK 11 / AGENT WORKSPACE</div>

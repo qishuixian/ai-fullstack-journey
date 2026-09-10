@@ -1,0 +1,6 @@
+*
+!requirements.txt
+!agent.py
+!main.py
+!store.py
+!Dockerfile

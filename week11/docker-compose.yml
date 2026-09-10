@@ -1,0 +1,30 @@
+name: week11-message-agent
+services:
+  backend:
+    image: message-agent-backend:latest
+    build: ./backend
+    ports:
+      - "127.0.0.1:8083:8083"
+    env_file:
+      - ./backend/.env
+    environment:
+      AGENT_DB_PATH: /app/data/agent_memory.db
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8083/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+  frontend:
+    image: message-agent-frontend:latest
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8003:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped

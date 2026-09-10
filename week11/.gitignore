@@ -1,3 +1,5 @@
 frontend/node_modules/
 backend/static/
 *.db-*
+data/
+*.tar
