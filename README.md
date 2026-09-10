@@ -2,6 +2,16 @@
 
 从 10 年前端转型 AI 全栈工程师的学习记录。
 
+## 在线体验
+
+个人主页：[qishuixian.com](https://qishuixian.com/)，对应仓库入口文件 [index.html](./index.html)。
+
+| 项目 | 在线地址 | 内容 |
+| --- | --- | --- |
+| Chat | [打开应用](https://qishuixian.com/chat/) | AI 流式对话 |
+| Ask | [打开应用](https://qishuixian.com/ask/) | RAG 知识库与文档问答 |
+| Week 11 · ReAct Studio | [打开应用](https://qishuixian.com/messageAgent/) | 实时工具调用、人工审核与会话历史 |
+
 ## 学习日志
 
 ### Month 1 · AI 聊天全栈应用
@@ -31,7 +41,7 @@
 
 ### Month 3 · Agent 智能体
 
-涉及目录：[week7](./week7)、[week8](./week8)、[week9](./week9)、[week10](./week10)。
+涉及目录：[week7](./week7)、[week8](./week8)、[week9](./week9)、[week10](./week10)、[week11](./week11)。
 
 - ✅ LangChain 模型调用、Prompt、工具与 Agent 基础
 - ✅ LangGraph `StateGraph`、节点、条件路由与消息状态
@@ -44,6 +54,22 @@
 - ✅ Human-in-the-loop 敏感工具人工审核
 - ✅ Python 原生 SQLite 对话记忆持久化
 - ✅ 整合工具、审核、超时降级与会话管理的交互式 CLI Agent
+- ✅ CLI Agent Web 化：FastAPI + SSE + Vue 3 + TypeScript + Element Plus
+- ✅ 原生 EventSource、打字机回复、推理轮次与工具执行轨迹
+- ✅ 浏览器人工审核弹窗、SQLite 会话隔离与历史恢复
+- ✅ Week 11 Docker 双容器部署与 `/messageAgent/` 线上访问
+
+#### Week 11 · ReAct Studio（已部署）
+
+将 Week 10 Day 7 的手写 ReAct 循环改造成异步生成器，用 SSE 将模型公开回复、工具调用和审核请求实时推送到浏览器。支持工具超时降级、批准/拒绝、会话切换和刷新后恢复历史。
+
+- 在线体验：[https://qishuixian.com/messageAgent/](https://qishuixian.com/messageAgent/)
+- 项目说明：[Week 11 README](./week11/README.md)
+- 开发端口：前端 `8003`、后端 `8083`
+- 部署方式：Docker Compose + 前端 Nginx + 宿主机 HTTPS Nginx，SQLite 数据目录持久化
+- 验证记录：镜像构建、子路径资源、真实模型 SSE、审核回传及容器重建后的历史恢复已验证；线上部署已由维护者确认完成
+
+天气与邮件为教学模拟工具，邮件不会真实发送。详细运行命令、部署步骤和当前限制见项目 README。
 
 ### Month 4 · 工程化 + 求职
 

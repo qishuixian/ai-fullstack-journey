@@ -2,6 +2,8 @@
 
 把 Week 10 Day 7 的 CLI Agent 搬上浏览器：输入任务后，实时查看模型公开回复、推理轮次、工具参数和执行结果；敏感操作在浏览器审核后继续执行。
 
+**部署状态：已完成线上部署（维护者确认）。** 在线体验：[ReAct Studio](https://qishuixian.com/messageAgent/)。仓库 [个人主页入口](../index.html) 已添加项目卡片，[根目录 README](../README.md) 已收录在线地址与本周成果。首页入口文件更新后，需要同步到宿主机个人站点的静态目录才能在线上首页显示。
+
 参考 [Week 7 项目](../week7/langchain-project/README.md) 的 FastAPI + Vue 结构，使用 Vue 3、TypeScript、Vite、Element Plus。本周保留 [Week 10 Day 7](../week10/week10_day7.py) 的手写 ReAct 循环，不替换成 `create_agent`。不展示模型内部隐藏思维链。
 
 学习路线：Week 9 建立 LangGraph 的图思维 → Week 10 手写 ReAct 理解执行原理 → Week 11 将 Agent 改造成可交互的 Web 应用。Day 1–7 的功能整合在同一套前后端中，按下表定位学习入口即可。
@@ -216,7 +218,7 @@ cd ../backend
 
 ## Docker 部署到 `/messageAgent/`
 
-参考 Week 7 的前后端双容器部署，线上地址为 **<https://qishuixian.com/messageAgent/>**。以下是部署配置与操作步骤；创建文件和本机验证不等同于已经部署到线上服务器。
+参考 Week 7 的前后端双容器部署，线上地址为 **<https://qishuixian.com/messageAgent/>**，维护者已确认部署成功。以下保留完整配置与操作步骤，供后续重建、升级和迁移使用；本节末尾的本机验证记录与线上部署状态分别记录。
 
 ### 文件与请求路径
 
@@ -266,7 +268,7 @@ curl -f http://127.0.0.1:8003/messageAgent/api/health
 在本机仓库 `week11` 目录执行（PowerShell）：
 
 ```powershell
-docker compose build
+docker compose build --builder default
 docker save -o message-agent-images.tar message-agent-backend:latest message-agent-frontend:latest
 ssh root@<SERVER_IP> "mkdir -p /opt/message-agent/backend"
 scp message-agent-images.tar docker-compose.prod.yml nginx.messageagent.conf root@<SERVER_IP>:/opt/message-agent/
@@ -274,6 +276,24 @@ scp backend/.env.example root@<SERVER_IP>:/opt/message-agent/backend/.env.exampl
 ```
 
 镜像架构必须匹配服务器。默认使用当前 Docker 引擎的平台；例如 ARM 机器向 x86_64 服务器交付时，需要使用 Buildx 为 `linux/amd64` 构建这两个镜像。
+
+**Docker Desktop 构建时出现 `auth.docker.io` 证书域名不匹配：**
+
+如果日志先出现 `booting buildkit`、创建 `buildx_buildkit_default`，随后提示 `certificate is valid for *.facebook.com ... not auth.docker.io`，说明拉取基础镜像的认证请求收到了不属于 Docker Hub 的证书。失败发生在镜像元数据获取阶段；Dockerfile 中被标出的 `FROM nginx:stable-alpine` 是触发拉取的位置，不是应用代码编译错误。
+
+先检查构建器，再明确指定本机 Docker 内置构建器：
+
+```powershell
+docker buildx ls
+# 本机 default 的 DRIVER 为 docker，已验证以下命令成功
+docker compose build --builder default
+# 使用已经构建的镜像启动，避免再次触发默认构建流程
+docker compose up -d --no-build
+```
+
+2026-09-10 本机验证：指定 `--builder default` 后，nginx、node、python 的镜像元数据获取成功，两个应用镜像均构建完成，编译步骤复用了已有缓存。该方式避开了报错的构建器执行路径，并不证明原路径的 DNS/代理配置已修复。
+
+若指定构建器后仍出现同类证书错误，继续检查 Docker Desktop 的代理配置、VPN/网络代理及 DNS/hosts 路由；仅凭证书日志无法确定具体是哪一层改写了连接。不要关闭 TLS 校验或信任这张域名不匹配的证书。其他机器上的构建器名称可能不同，以 `docker buildx ls` 输出为准。
 
 服务器执行：
 
