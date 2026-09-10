@@ -1,156 +1,130 @@
-# Week 9：从 Function Calling 到可持久化 ReAct Agent
+# Week 10：全栈 AI 进阶总结
 
-本周围绕 AI Agent 的核心执行链路展开：先观察模型如何生成工具调用请求，再用纯 Python 手写 ReAct 循环，最后把同一套流程迁移到 LangGraph，并通过 SQLite Checkpoint 保存不同会话的对话状态。
+本周已完成全部 7 天的学习挑战：从零手写 ReAct 循环，逐步加入流式输出、人工审核、工具超时降级和 SQLite 对话记忆，最终整合为一个面向生产工程化实践的交互式 CLI Agent。
 
-## 学习内容
+## 七天成长回顾
 
-| 天数 | 脚本 | 核心内容 |
+| 天数 | 示例 | 完成内容 |
 | --- | --- | --- |
-| Day 1 | `week9_day1.py` | 使用 `@tool` 定义计算、搜索和天气工具，通过 `bind_tools` 观察模型生成的工具名与参数 |
-| Day 2 | `week9_day2.py` | 天气工具接入 `wttr.in`，测试一个问题触发一个或多个工具调用的决策能力 |
-| Day 3 | `week9_day3.py` | 用纯 Python 实现“模型决策 -> 执行工具 -> 回传结果 -> 再次推理”的 ReAct 闭环 |
-| Day 4 | `week9_day4.py` | 使用 `StateGraph`、`ToolNode`、条件边和 `add_messages` 将 ReAct 循环图化 |
-| Day 5 | `week9_day5.py` | 使用 `SqliteSaver` 持久化消息状态，并增加模型重试、超时和最大推理次数限制 |
+| Day 1 | [week10_day1.py](./week10_day1.py) | 使用 OpenAI SDK 手写 ReAct 循环，手动定义工具 JSON Schema，执行工具并回传结果 |
+| Day 2 | [week10_day2.py](./week10_day2.py) | 使用 LangChain `@tool`、`bind_tools` 和消息类，掌握工具绑定与手写循环的配合 |
+| Day 3 | [week10_day3.py](./week10_day3.py) | 接入 Streaming，边接收边输出文本，并收集流式工具调用信息 |
+| Day 4 | [week10_day4.py](./week10_day4.py) | 加入 Human-in-the-loop，执行敏感工具前展示参数并等待人工批准 |
+| Day 5 | [week10_day5.py](./week10_day5.py) | 使用线程池与超时结果处理演示工具降级，结合人工审核增强执行流程 |
+| Day 6 | [week10_day6.py](./week10_day6.py) | 使用 Python 原生 `sqlite3` 保存、加载对话消息，实现按会话隔离的持久化记忆 |
+| Day 7 | [week10_day7.py](./week10_day7.py) | 整合工具调用、流式输出、审核、超时降级与持久化，完成交互式 CLI Agent |
 
-## 从工具调用到 Agent
+与 Week 9 的 LangGraph Checkpoint 不同，本周重点是亲自管理执行循环、消息协议和数据库读写，理解 Agent 各项能力如何协同工作。
 
-Function Calling 不会替开发者执行函数。模型只会返回要调用的工具及参数，程序仍需完成工具查找、执行和结果回传。Day 1 和 Day 2 只展示模型的调用决策；从 Day 3 开始，程序才真正闭合整个 Agent 循环。
+## 核心执行流程
 
 ```text
-用户问题
-   ↓
-模型判断是否需要工具
-   ├─ 不需要 → 直接返回最终答案
-   └─ 需要   → 生成 tool_calls
-                  ↓
-              程序执行工具
-                  ↓
-              ToolMessage 回传结果
-                  ↓
-              模型继续推理
+输入会话 ID → 加载 SQLite 历史 → 输入问题并保存
+                                  ↓
+                        调用模型，流式显示文本
+                                  ↓
+                        合并响应与 tool_calls
+                         ├─ 无工具调用 → 结束本轮
+                         └─ 有工具调用 → 查找工具
+                                          ↓
+                                敏感操作等待人工审核
+                                 ├─ 拒绝 → 记录拒绝结果
+                                 └─ 批准/普通工具 → 执行与超时处理
+                                          ↓
+                                保存并回传 ToolMessage
+                                          ↓
+                                  模型继续下一轮推理
 ```
 
-Day 4 用 LangGraph 表达相同过程：`agent` 节点负责调用模型，`tools` 节点负责执行工具，条件边根据最后一条 `AIMessage` 是否包含 `tool_calls` 决定继续循环还是结束。
+模型负责选择工具和生成参数，程序负责实际执行。`tool_call_id` 将工具结果与模型请求关联起来；保存历史时也必须保留这组关系。
 
-## 环境要求
+Day 7 通过累加流式消息块（`full_response += chunk`）合并文本和工具参数，收集完成后再执行工具。敏感工具使用 `metadata={"is_sensitive": True}` 标记，用户拒绝时也会保存工具结果，让模型知道操作未执行。
 
-- Python 3.10+
-- DeepSeek API Key
-- Windows PowerShell、macOS 或 Linux
-- Day 2 查询实时天气时需要访问 `https://wttr.in`
+## 环境与启动
 
-## 安装依赖
-
-在仓库根目录进入 Week 9：
+需要 Python 3.10+ 和可用的 DeepSeek API Key。以下命令从仓库根目录开始：
 
 ```powershell
-cd week9
+cd week10
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
 
-macOS 或 Linux 使用：
+macOS / Linux 对应使用 `python3 -m venv venv` 和 `source venv/bin/activate`。
 
-```bash
-cd week9
-python3 -m venv venv
-source venv/bin/activate
-python -m pip install -r requirements.txt
-```
+Day 1 直接使用 `openai` SDK，安装当前 `langchain-openai` 依赖时会一并安装；SQLite 使用 Python 标准库，无需额外安装。本周脚本不依赖 LangGraph 执行图，依赖清单中仍保留了相关包。
 
-当前虚拟环境验证过的主要版本为：
-
-```text
-langgraph==1.2.11
-langchain-core==1.6.2
-langchain-openai==1.6.0
-langgraph-checkpoint-sqlite==3.1.1
-python-dotenv==1.2.3
-requests==2.34.2
-```
-
-`requirements.txt` 使用最低版本约束，因此重新安装时可能得到更新版本；依赖升级后应重新执行五个示例。
-
-## 配置模型
-
-在 `week9/.env` 中配置：
+在 `week10/.env` 中配置：
 
 ```dotenv
 DEEPSEEK_API_KEY=你的 DeepSeek API Key
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-BASE_URL=https://api.deepseek.com
 MODEL_NAME=deepseek-chat
 ```
 
-不要提交包含真实密钥的 `.env` 文件。
+`MODEL_NAME` 请填写账号可用的模型。Day 2、3、4、6、7 未提供模型名默认值，应显式配置；这些脚本以及 Day 1 使用 `load_dotenv()` 读取环境变量。Day 5 用关键词模拟模型决策，不调用模型 API。
 
-目前 Day 1、Day 2、Day 3 读取 `DEEPSEEK_BASE_URL`，Day 4、Day 5 读取 `BASE_URL`，所以示例同时配置两个地址变量。Day 3、Day 4、Day 5 的源码默认模型名与 Day 1、Day 2 不完全一致；显式设置 `MODEL_NAME` 可以保证五个脚本使用同一个可用模型。
-
-也可以只在当前 PowerShell 会话中配置：
+激活环境后，在 `week10` 目录按顺序运行：
 
 ```powershell
-$env:DEEPSEEK_API_KEY="你的 DeepSeek API Key"
-$env:DEEPSEEK_BASE_URL="https://api.deepseek.com"
-$env:BASE_URL="https://api.deepseek.com"
-$env:MODEL_NAME="deepseek-chat"
+python week10_day1.py
+python week10_day2.py
+python week10_day3.py
+python week10_day4.py
+python week10_day5.py
+python week10_day6.py
+python week10_day7.py
 ```
 
-## 运行示例
+Day 4、5 的邮件示例需要在终端确认；Day 5 输入 `yes` 才批准。Day 6 默认执行固定 `test_session` 的演示，交互入口 `interactive_session()` 在源码中已定义但未启用。Day 7 默认直接进入完整交互模式。
 
-激活虚拟环境后，在 `week9` 目录逐天运行：
+## Day 7：交互式 CLI Agent
 
-```powershell
-python week9_day1.py
-python week9_day2.py
-python week9_day3.py
-python week9_day4.py
-python week9_day5.py
-```
+启动后输入会话 ID，例如 `week10-demo`；留空会自动生成。再次启动时输入同一个 ID，可以加载该会话已保存的历史。
 
-建议按 Day 1 到 Day 5 的顺序观察输出：
+| 命令 | 功能 |
+| --- | --- |
+| `help` | 查看命令和工具列表 |
+| `new` | 切换到自动生成的新会话，不删除旧会话记录 |
+| `exit` | 退出程序 |
 
-1. Day 1 查看 `tool_calls` 中的工具名称和结构化参数。
-2. Day 2 对比单工具与多工具问题的决策结果。天气接口失败时会返回明确标注的模拟降级数据。
-3. Day 3 查看每轮 Thought、Action、Observation，以及 `ToolMessage.tool_call_id` 如何关联一次工具调用。
-4. Day 4 对比手写循环与 LangGraph 节点、边和状态 Reducer 的对应关系。
-5. Day 5 连续执行同一 `thread_id` 和新 `thread_id`，验证会话记忆隔离。
+可用工具包括模拟天气查询 `get_weather(city)`、整数乘法 `calculator(a, b)`、慢工具 `slow_tool()` 和需人工确认的模拟邮件工具 `send_email(to, subject, body)`。
 
-## Day 5 的持久化记忆
+建议用以下步骤检查各项能力：
 
-Day 5 使用 `SqliteSaver.from_conn_string("checkpoints.db")`，并在上下文管理器内部编译和调用图。运行后会在当前目录生成 `checkpoints.db`。
+1. 输入“北京天气怎么样？再帮我算 12 乘以 34”，观察工具调用、结果回传和流式回答，乘积应为 `408`。
+2. 输入“请调用 send_email，给 demo@example.com 发邮件，主题是学习总结，正文是 Week 10 已完成”，在审核提示中输入 `no`，观察拒绝结果；再次请求并输入 `yes`，观察模拟执行结果。
+3. 输入“请调用 slow_tool 测试超时降级”，观察超时提示和降级结果。当前实现并不保证 3 秒内返回，原因见下方边界说明。
+4. 输入“请记住我叫小明”，退出后重新启动，使用相同会话 ID 问“我叫什么？”，检查持久化记忆。
+5. 输入 `new` 后再询问姓名，检查新会话未加载旧会话上下文。
 
-```python
-with SqliteSaver.from_conn_string("checkpoints.db") as checkpointer:
-    checkpointer.setup()
-    app = workflow.compile(checkpointer=checkpointer)
+工具是否被选择由模型决定，上述步骤是手动验证路径，不是已执行的测试结果。
 
-    config = {"configurable": {"thread_id": "session1"}}
-    result = app.invoke({"messages": [HumanMessage(content=query)]}, config)
-```
+## SQLite 持久化设计
 
-同一个 `thread_id` 会继续读取历史状态，不同 `thread_id` 相互隔离。如果需要全新的回归环境，可更换会话 ID；删除数据库会清空全部本地检查点数据。
+Day 6 和 Day 7 都使用相对路径 `agent_memory.db`，数据库生成在启动命令所在目录，建议始终从 `week10` 运行。
 
-## 关键实现细节
+- Day 6 使用 `conversation_history` 表；Day 7 使用 `conversations` 表，两者不会自动共享对话记录。
+- 按 `session_id` 区分会话，保存 system、human、ai、tool 消息。
+- `tool_calls` 以 JSON 保存，工具消息保留 `tool_call_id`，读取时还原为 LangChain 消息对象。
+- 同一会话可以跨进程重启继续读取，`new` 仅切换会话 ID。
 
-- `add_messages` 是消息字段的 Reducer。节点只需返回本轮新增消息，LangGraph 会合并到已有历史中。
-- `ToolNode` 根据 `AIMessage.tool_calls` 查找并执行已注册工具，并生成对应的 `ToolMessage`。
-- `ToolMessage` 必须携带正确的 `tool_call_id`，模型才能把执行结果与之前的工具请求关联起来。
-- `temperature=0` 降低演示中的随机性，但不保证模型每次都选择完全相同的工具组合。
-- `max_retries=3` 和 `timeout=30` 处理请求层面的短暂失败；`MAX_ITERATIONS=5` 限制 Agent 的推理轮数。这两类保护解决的问题不同。
+## 工程化收获与当前边界
 
-## 已知边界
+本周已把独立能力整合为完整的 CLI 学习项目，覆盖了生产级 Agent 所需的部分工程化基础；正式用于生产前仍需完善以下实现：
 
-- Day 1 的 `search_web`、`get_weather`，Day 2 的 `search_web`，以及 Day 3 到 Day 5 的天气数据包含模拟实现，不能作为生产实时数据使用。
-- Day 2 的 `wttr.in` 请求失败、超时或返回非 200 状态时会降级为模拟天气。
-- Day 1 和 Day 2 只打印模型返回的工具调用计划，并不执行这些工具。
-- Day 3 通过工具名称从 `TOOLS` 字典直接索引，生产代码还应处理未知工具、参数校验失败和工具执行异常。
-- `checkpoints.db` 是运行数据，不是源码；共享仓库前应确认它是否需要纳入版本控制。
+- **工具数据**：天气为模拟数据，邮件仅返回字符串，没有真正调用邮件服务。
+- **超时控制**：Day 5、7 使用 `future.result(timeout=3)`，但线程池上下文退出时仍会等待正在运行的任务。Day 5 慢工具休眠 5 秒，Day 7 休眠 10 秒，因此超时提示可能在任务结束后才出现，也不会强制取消工具副作用。
+- **历史窗口**：Day 6、7 当前通过 `ORDER BY id ASC LIMIT ?` 分别读取最早的 50、200 条消息，并非最近消息。长会话需要按完整工具调用链裁剪或摘要，避免遗漏近期上下文或截断消息配对。
+- **异常恢复**：模型网络异常、流中断、消息写入中断后的恢复，以及真正的权限校验和审计仍需补充。
+- **循环上限**：Day 7 最多推理 5 轮；达到上限会返回错误文本，但 CLI 当前只补换行，没有显式打印该返回文本。
 
-## 后续实践方向
+## 下一步
 
-- 将模拟搜索替换为真实搜索服务，并为外部请求增加重试、限流和缓存。
-- 统一五个脚本的环境变量名与默认模型配置。
-- 为工具增加 Pydantic 参数模型、权限控制和错误分类。
-- 在 LangGraph 中加入人工确认节点、流式输出和可观测性。
-- 将 Agent 封装为 FastAPI 服务，再接入前端展示工具执行过程与会话列表。
+- 接入真实工具服务，加入请求级超时、取消机制和幂等控制。
+- 完善历史窗口、消息事务与失败恢复，补充自动化回归验证。
+- 增加结构化日志、调用耗时和费用统计。
+- 将 CLI Agent 封装为 FastAPI 接口，再接入前端展示流式回答、审核和会话管理。
+
+返回 [项目总览](../README.md)。

@@ -31,7 +31,7 @@
 
 ### Month 3 · Agent 智能体
 
-涉及目录：[week7](./week7)、[week8](./week8)、[week9](./week9)。
+涉及目录：[week7](./week7)、[week8](./week8)、[week9](./week9)、[week10](./week10)。
 
 - ✅ LangChain 模型调用、Prompt、工具与 Agent 基础
 - ✅ LangGraph `StateGraph`、节点、条件路由与消息状态
@@ -40,6 +40,25 @@
 - ✅ Supervisor / Worker 多 Agent 协作与并行分发
 - ✅ SQLite Checkpoint 会话记忆持久化
 - ✅ 重试、超时、最大迭代次数与循环熔断
+- ✅ Agent 流式输出与流式工具调用消息合并
+- ✅ Human-in-the-loop 敏感工具人工审核
+- ✅ Python 原生 SQLite 对话记忆持久化
+- ✅ 整合工具、审核、超时降级与会话管理的交互式 CLI Agent
+
+#### Week 10 · 全栈 AI 进阶总结
+
+已完成 7 天挑战，详细实现与运行方式见 [Week 10 学习总结](./week10/README.md)。
+
+| 阶段 | 学习成果 |
+| --- | --- |
+| Day 1–2 | 从零手写 ReAct 循环，掌握 OpenAI SDK、JSON Schema 与 LangChain 工具绑定 |
+| Day 3 | 接入 Streaming，逐步输出回答并收集工具调用信息 |
+| Day 4 | 加入 Human-in-the-loop，敏感工具执行前等待人工确认 |
+| Day 5 | 实现工具超时降级演示，增强异常场景处理能力 |
+| Day 6 | 使用 SQLite 原生实现对话记忆持久化与会话隔离 |
+| Day 7 | 整合全部知识点，完成面向生产工程化实践的交互式 CLI Agent |
+
+当前为学习实现：天气和邮件使用模拟工具，线程超时取消与长会话历史窗口仍需完善，具体边界见 Week 10 文档。
 
 ### Month 4 · 工程化 + 求职
 
