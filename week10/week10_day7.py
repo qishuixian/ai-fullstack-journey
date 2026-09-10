@@ -2,6 +2,7 @@
 """
 Week 10 Day 7 - 综合 CLI Agent
 整合：工具调用、超时降级、人工审核、流式输出、SQLite 持久化
+修复：流式工具调用使用官方合并方式，兼容新版 LangChain
 """
 
 import json
@@ -24,7 +25,7 @@ load_dotenv()
 DB_PATH = "agent_memory.db"
 TIMEOUT_SECONDS = 3       # 工具超时时间
 MAX_STEPS = 5             # 最大推理轮数
-STREAM_DELAY = 0.03       # 流式输出字符间隔（秒）
+STREAM_DELAY = 0.01       # 流式输出字符间隔（秒）
 
 # ==================== 1. 工具定义 ====================
 
@@ -93,7 +94,7 @@ def save_message(session_id: str, role: str, content: str = None,
     conn.commit()
     conn.close()
 
-def load_history(session_id: str, limit: int = 100) -> list:
+def load_history(session_id: str, limit: int = 200) -> list:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("""
@@ -149,16 +150,7 @@ def human_approve(tool_name: str, tool_args: dict) -> bool:
             return False
         print("   请输入 yes 或 no")
 
-# ==================== 5. 流式输出辅助 ====================
-
-def stream_text(text: str, delay: float = STREAM_DELAY):
-    """逐字打印文本，模拟打字效果"""
-    for char in text:
-        print(char, end="", flush=True)
-        time.sleep(delay)
-    print()  # 换行
-
-# ==================== 6. LLM 初始化 ====================
+# ==================== 5. LLM 初始化 ====================
 
 llm = ChatOpenAI(
     model=os.getenv("MODEL_NAME"),
@@ -168,7 +160,7 @@ llm = ChatOpenAI(
     streaming=True  # 启用流式
 )
 
-# ==================== 7. ReAct 主循环（整合版） ====================
+# ==================== 6. ReAct 主循环（整合版，流式官方合并方式） ====================
 
 def react_agent(session_id: str, user_input: str) -> str:
     # 加载历史
@@ -186,49 +178,32 @@ def react_agent(session_id: str, user_input: str) -> str:
     for step in range(MAX_STEPS):
         print(f"\n--- 第 {step+1} 轮推理 ---")
 
-        # 流式收集完整响应
-        collected_content = []
-        collected_tool_calls = []
-
+        # 流式收集：使用 LangChain 官方合并方式
+        full_response = None
         for chunk in llm_with_tools.stream(messages):
             if chunk.content:
-                collected_content.append(chunk.content)
                 print(chunk.content, end="", flush=True)
                 time.sleep(STREAM_DELAY)
+            # 累加 chunk
+            if full_response is None:
+                full_response = chunk
+            else:
+                full_response += chunk
 
-            if chunk.tool_call_chunks:
-                for tc_chunk in chunk.tool_call_chunks:
-                    idx = tc_chunk.index if hasattr(tc_chunk, 'index') else 0
-                    while len(collected_tool_calls) <= idx:
-                        collected_tool_calls.append({"name": "", "args": "", "id": ""})
-                    if tc_chunk.name:
-                        collected_tool_calls[idx]["name"] += tc_chunk.name
-                    if tc_chunk.args:
-                        collected_tool_calls[idx]["args"] += tc_chunk.args
-                    if tc_chunk.id:
-                        collected_tool_calls[idx]["id"] = tc_chunk.id
+        # 从合并后的 full_response 提取完整内容
+        content = full_response.content if full_response else ""
+        tool_calls = full_response.tool_calls if full_response else []
 
-        full_content = "".join(collected_content)
-        final_tool_calls = []
-        for tc in collected_tool_calls:
-            if tc["name"]:
-                final_tool_calls.append({
-                    "name": tc["name"],
-                    "args": json.loads(tc["args"]) if tc["args"] else {},
-                    "id": tc["id"]
-                })
-
-        # 构造 AIMessage
-        ai_msg = AIMessage(content=full_content or "")
-        if final_tool_calls:
-            ai_msg.tool_calls = final_tool_calls
-
+        # 构造 AIMessage 并保存
+        ai_msg = AIMessage(content=content or "")
+        if tool_calls:
+            ai_msg.tool_calls = tool_calls
         messages.append(ai_msg)
-        save_message(session_id, "ai", content=full_content, tool_calls=final_tool_calls)
+        save_message(session_id, "ai", content=content, tool_calls=tool_calls)
 
         # 处理工具调用
-        if final_tool_calls:
-            for tc in final_tool_calls:
+        if tool_calls:
+            for tc in tool_calls:
                 tool_name = tc["name"]
                 tool_args = tc["args"]
                 tool_id = tc["id"]
@@ -262,19 +237,19 @@ def react_agent(session_id: str, user_input: str) -> str:
                 save_message(session_id, "tool", content=result_str, tool_call_id=tool_id)
         else:
             # 最终回答已流式输出，直接返回
-            return full_content
+            return content
 
     return "❌ 超过最大推理轮数。"
 
-# ==================== 8. 交互式 CLI ====================
+# ==================== 7. 交互式 CLI ====================
 
 def interactive_cli():
     """主交互循环"""
     init_db()
-    print("=" * 55)
+    print("=" * 52)
     print("  🧠 AI Agent CLI - Week 10 综合版")
     print("  输入 'exit' 退出 | 'new' 新建会话 | 'help' 查看帮助")
-    print("=" * 55)
+    print("=" * 52)
 
     session_id = input("请输入会话 ID（留空自动生成）: ").strip()
     if not session_id:
@@ -317,7 +292,7 @@ def interactive_cli():
         if answer:
             print()  # 流式输出已打印内容，这里只是换行
 
-# ==================== 9. 入口 ====================
+# ==================== 8. 入口 ====================
 
 if __name__ == "__main__":
     interactive_cli()
