@@ -19,7 +19,7 @@
 
 默认端口 `8004` 只绑定宿主机回环地址，不必向公网开放。与 week11 的 `8003/8083` 不冲突。如果本地 Vite 占用 `8004`，先停止 Vite，或在 PowerShell 设置 `$env:CHILDREN_PORT = '18004'` 后测试；测试结束用 `Remove-Item Env:CHILDREN_PORT` 恢复。线上更改端口时，必须同步修改 `nginx.children.conf` 的上游端口。
 
-`src/images/` 随源码进入构建阶段，只有通过 Vite 导入的素材才会进入最终 `dist`；当前欢迎页未引用这些图片。根目录的 `images/`（如有）被忽略。后续若使用 `public/` 发布素材，需要在 Dockerfile 中增加 `COPY public ./public`。
+`src/images/` 随源码进入构建阶段，中文识字页通过 Vite 导入图片，构建后自动输出到 `dist/assets/`，无需额外挂载素材。浏览器只在图片模式加载当前页图片。根目录的 `images/`（如有）被忽略。后续若使用 `public/` 发布素材，需要在 Dockerfile 中增加 `COPY public ./public`。
 
 ## 2. 方式 A：服务器从源码部署
 

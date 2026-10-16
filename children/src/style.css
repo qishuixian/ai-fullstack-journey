@@ -24,6 +24,8 @@ button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation
 .brand > span { color: #df8656; font-size: 32px; }
 .brand small { margin-left: auto; font-size: 10px; letter-spacing: 2px; font-weight: 500; }
 main { width: 100%; max-width: 860px; margin: auto; padding: 24px 0; }
+.study-shell { height: 100vh; height: 100dvh; min-height: 0; }
+.study-shell main { display: flex; max-width: 1000px; min-height: 0; margin: 0 auto; padding: 0; flex: 1; }
 .welcome { text-align: center; }
 .sun { color: #dba948; font-size: 50px; line-height: 1; margin-bottom: 20px; }
 .eyebrow { font-size: 13px; letter-spacing: 2px; font-weight: 600; }
