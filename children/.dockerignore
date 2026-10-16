@@ -1,0 +1,9 @@
+node_modules
+dist
+images
+.git
+.env*
+*.local
+*.log
+*.tar
+*.tar.gz

@@ -1,0 +1,68 @@
+:root {
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: #303e35;
+  background: #fffaf1;
+  font-synthesis: none;
+  -webkit-text-size-adjust: 100%;
+  text-rendering: optimizeLegibility;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 280px; }
+a { color: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+:focus-visible { outline: 3px solid #303e35; outline-offset: 5px; }
+.page-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 32px 20px;
+  padding: max(28px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(32px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 0 55%, #eaf0df80, transparent 45%), radial-gradient(ellipse at 100% 25%, #ffe6c170, transparent 40%);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+.brand > span { color: #df8656; font-size: 32px; }
+.brand small { margin-left: auto; font-size: 10px; letter-spacing: 2px; font-weight: 500; }
+main { width: 100%; max-width: 860px; margin: auto; padding: 24px 0; }
+.welcome { text-align: center; }
+.sun { color: #dba948; font-size: 50px; line-height: 1; margin-bottom: 20px; }
+.eyebrow { font-size: 13px; letter-spacing: 2px; font-weight: 600; }
+h1 { font-size: clamp(30px, 4.5vw, 46px); line-height: 1.5; letter-spacing: 2px; margin: 16px 0; }
+h1 span { color: #58816b; }
+.intro { color: #697367; font-size: 15px; line-height: 1.8; margin-bottom: 32px; }
+.language-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; max-width: 700px; margin: 0 auto; }
+.chinese { --accent: #a64b2f; --tint: #fff0df; --tile: #f8ddc0; }
+.english { --accent: #356952; --tint: #edf3e9; --tile: #dce9d6; }
+.language-card { padding: 28px; border-radius: 28px; background: var(--tint); border: 1px solid #fff; text-align: left; box-shadow: 0 10px 30px #454c3210; }
+.letter { display: flex; align-items: center; justify-content: center; position: relative; width: 76px; height: 76px; border-radius: 22px; color: var(--accent); background: var(--tile); font-size: 38px; font-weight: 700; }
+.letter span { position: absolute; right: -12px; top: -12px; font-size: 27px; }
+.card-label { font-size: 10px; letter-spacing: 3px; color: var(--accent); margin: 24px 0 8px; }
+h2 { margin: 0; font-size: 25px; }
+.language-card > p:not(.card-label) { font-size: 14px; color: #667064; line-height: 1.7; margin: 12px 0 24px; }
+.entry-button.el-button { width: 100%; height: 52px; border: 0; border-radius: 14px; background: var(--accent); color: white; font-family: inherit; font-size: 16px; font-weight: 600; }
+.entry-button.el-button:hover, .entry-button.el-button:focus-visible { background: var(--accent); color: white; filter: brightness(1.08); }
+.entry-button.el-button > span { display: flex; justify-content: space-between; width: 100%; }
+.welcome-note { font-size: 12px; color: #748070; margin: 26px 0 0; }
+footer { text-align: center; font-size: 11px; color: #748070; letter-spacing: 2px; }
+footer span { color: #c89845; margin-left: 8px; }
+.language-page { background: var(--tint); padding: 36px; border-radius: 28px; text-align: center; }
+.back-link { display: block; width: fit-content; padding: 12px 0; margin-bottom: 28px; text-decoration: none; }
+.language-page .letter { margin: 0 auto 28px; }
+.language-page h1 { font-size: clamp(28px, 5vw, 40px); overflow-wrap: anywhere; }
+.switch-link { display: inline-flex; min-height: 48px; align-items: center; color: var(--accent); }
+@media (max-width: 600px) {
+  .page-shell { padding: 20px 20px max(20px, env(safe-area-inset-bottom)); padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); padding-top: max(20px, env(safe-area-inset-top)); }
+  .brand { font-size: 16px; }
+  .brand small { display: none; }
+  main { padding: 24px 0; }
+  .sun { font-size: 40px; margin-bottom: 16px; }
+  h1 { font-size: 32px; margin: 12px 0; }
+  .intro { font-size: 14px; margin-bottom: 24px; }
+  .language-grid { grid-template-columns: 1fr; gap: 16px; }
+  .language-card { padding: 22px; border-radius: 22px; position: relative; }
+  .language-card .letter { position: absolute; top: 22px; right: 24px; width: 56px; height: 56px; font-size: 28px; border-radius: 17px; }
+  .card-label { margin: 0 0 8px; }
+  h2 { font-size: 23px; padding-right: 65px; }
+  .language-card > p:not(.card-label) { margin: 14px 0 18px; font-size: 13px; }
+  .language-page { padding: 24px 20px; }
+}

@@ -1,0 +1,14 @@
+name: children-learning
+services:
+  frontend:
+    image: children-frontend:${CHILDREN_IMAGE_TAG:-latest}
+    build: .
+    ports:
+      - "127.0.0.1:${CHILDREN_PORT:-8004}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/children/index.html"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
