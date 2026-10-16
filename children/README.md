@@ -56,5 +56,6 @@ location /children/ {
     try_files $uri $uri/ /children/index.html;
 }
 ```
-
+文件上传到位后执行：
+sudo nginx -t && sudo systemctl reload nginx
 History 路由必须回退到 `/children/index.html`，否则直接访问或刷新中文、英文页面会返回 404。本地创建和构建不会自动发布到 qishuixian.com。
